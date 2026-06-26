@@ -86,7 +86,21 @@ const html = `<!doctype html>
     .composer { margin-bottom: 16px; }
     .feed-card { display: grid; gap: 10px; }
     .feed-card h3 { display: flex; align-items: center; gap: 10px; }
-    .post-media { width: min(480px, 100%); max-height: 280px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); }
+    .media-tools { display: grid; gap: 10px; margin-top: 12px; }
+    .upload-box { border: 1px dashed var(--line); border-radius: 10px; padding: 14px; background: rgba(255,255,255,0.03); }
+    .upload-box input { margin-top: 8px; padding: 8px; }
+    .media-preview { display: flex; gap: 10px; overflow-x: auto; padding: 4px 0; }
+    .media-preview img { width: 92px; height: 72px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); flex: 0 0 auto; }
+    .media-carousel { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 4px 0 8px; }
+    .media-slide { min-width: min(540px, 86%); scroll-snap-align: start; position: relative; }
+    .post-media { width: 100%; max-height: 360px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); display: block; background: #020617; }
+    .media-count { position: absolute; top: 10px; right: 10px; background: rgba(2, 6, 23, 0.78); color: white; border-radius: 999px; padding: 4px 8px; font-size: 12px; font-weight: 700; }
+    .post-actions { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; }
+    .post-actions button { background: transparent; color: var(--muted); border: 1px solid var(--line); padding: 7px 10px; }
+    .post-actions button.active, .post-actions button:hover { color: white; background: var(--brand); border-color: var(--brand); }
+    .comments { border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 8px; }
+    .comment-row { background: rgba(255,255,255,0.04); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+    .comment-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; }
     .form-grid { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 12px; }
     .status-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
     .badge.pending { background: #fff7ed; color: var(--warning); }
@@ -224,6 +238,7 @@ const html = `<!doctype html>
     let searchQuery = "";
     let postMode = "community_post";
     let theme = localStorage.getItem("learnlink_theme") || "dark";
+    let selectedPostImages = [];
 
     const show = (id) => document.getElementById(id).classList.remove("hidden");
     const hide = (id) => document.getElementById(id).classList.add("hidden");
@@ -231,6 +246,9 @@ const html = `<!doctype html>
     const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
     const normalized = (value) => String(value ?? "").toLowerCase();
     const matchesQuery = (item, fields) => !searchQuery || fields.some((field) => normalized(item[field]).includes(searchQuery));
+    const normalizeMedia = (value) => Array.isArray(value) ? value.filter(Boolean) : (value ? [value] : []);
+    const postKey = (post) => String(post.id || post.created_at || post.content || "post").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 80);
+    const interactionKey = (post, suffix) => "learnlink_post_" + postKey(post) + "_" + suffix;
     const tabLabels = { feed: "Feed", my_posts: "My Posts", courses: "Courses", jobs: "Jobs", community: "Community", channels: "Channels", admin: "Admin" };
     const tabSubtitles = {
       feed: "Approved posts from your followed communities and channels",
@@ -452,7 +470,7 @@ const html = `<!doctype html>
     }
 
     function renderPostComposer() {
-      return '<div class="card composer"><h3>Create post</h3><div class="form-grid"><label>Destination<select id="post-type"><option value="community_post">Community post</option><option value="channel_post">My channel post</option><option value="platform_post">Public profile post</option></select></label><label>Media image URL<input id="media-url" placeholder="https://example.com/image.jpg" /></label></div><div id="target-panel" class="target-panel"></div><textarea id="post" placeholder="Share news, learning updates, or discussion"></textarea><p class="actions"><button id="submit">Submit for AI Review</button></p><p id="post-message" class="muted"></p></div>';
+      return '<div class="card composer"><h3>Create post</h3><div class="form-grid"><label>Destination<select id="post-type"><option value="community_post">Community post</option><option value="channel_post">My channel post</option><option value="platform_post">Public profile post</option></select></label><label>Media image URL<input id="media-url" placeholder="https://example.com/image.jpg" /></label></div><div class="media-tools"><label class="upload-box">Upload images from device<input id="media-files" type="file" accept="image/*" multiple /></label><div id="media-preview" class="media-preview"></div></div><div id="target-panel" class="target-panel"></div><textarea id="post" placeholder="Share news, learning updates, or discussion"></textarea><p class="actions"><button id="submit">Submit for AI Review</button><button class="secondary" id="clear-media" type="button">Clear images</button></p><p id="post-message" class="muted"></p></div>';
     }
 
     function bindPostWorkspace() {
@@ -463,7 +481,41 @@ const html = `<!doctype html>
         renderTargetPanel();
       };
       document.getElementById("submit").addEventListener("click", submitWorkspacePost);
+      document.getElementById("media-files").onchange = handlePostImageSelection;
+      document.getElementById("clear-media").onclick = clearSelectedPostImages;
+      renderMediaPreview();
       renderTargetPanel();
+    }
+
+    async function handlePostImageSelection(event) {
+      const files = Array.from(event.target.files || []).filter((file) => file.type.startsWith("image/"));
+      const images = await Promise.all(files.map(fileToDataUrl));
+      selectedPostImages = selectedPostImages.concat(images);
+      renderMediaPreview();
+    }
+
+    function fileToDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve({ name: file.name, src: reader.result });
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function clearSelectedPostImages() {
+      selectedPostImages = [];
+      const input = document.getElementById("media-files");
+      if (input) input.value = "";
+      renderMediaPreview();
+    }
+
+    function renderMediaPreview() {
+      const preview = document.getElementById("media-preview");
+      if (!preview) return;
+      preview.innerHTML = selectedPostImages.length
+        ? selectedPostImages.map((image, index) => '<img src="' + escapeHtml(image.src) + '" alt="' + escapeHtml(image.name || ("Selected image " + (index + 1))) + '" title="' + escapeHtml(image.name || "Selected image") + '" />').join("")
+        : '<p class="muted">Select one or more images. They will appear as swipeable media inside the post.</p>';
     }
 
     function renderTargetPanel() {
@@ -525,13 +577,77 @@ const html = `<!doctype html>
     function renderFeedPosts() {
       const visiblePosts = feedPosts.filter((post) => matchesQuery(post, ["author", "source", "content", "post_type"]));
       document.getElementById("feed").innerHTML = visiblePosts.length ? visiblePosts.map(renderPostCard).join("") : '<article class="card"><h3>No approved posts found</h3><p class="muted">Try another search or submit a community/channel post for review.</p></article>';
+      bindPostActions();
     }
 
     function renderPostCard(post) {
       const status = post.status || post.ai_moderation_status || "approved";
-      const media = Array.isArray(post.media_url) && post.media_url.length ? '<img class="post-media" src="' + escapeHtml(post.media_url[0]) + '" alt="Post media" />' : "";
       const reason = status === "rejected" && post.ai_moderation_reason ? '<p class="muted"><strong>Reason:</strong> ' + escapeHtml(post.ai_moderation_reason) + '</p>' : "";
-      return '<article class="card feed-card"><h3>' + escapeHtml(post.author || post.author_id || "LearnLink user") + ' <span class="badge ' + escapeHtml(status) + '">' + escapeHtml(status) + '</span></h3><p class="muted">' + escapeHtml(post.source || post.post_type || "Platform-wide") + '</p>' + media + '<p>' + escapeHtml(post.content) + '</p>' + reason + '</article>';
+      return '<article class="card feed-card" id="post-' + escapeHtml(postKey(post)) + '"><h3>' + escapeHtml(post.author || post.author_id || "LearnLink user") + ' <span class="badge ' + escapeHtml(status) + '">' + escapeHtml(status) + '</span></h3><p class="muted">' + escapeHtml(post.source || post.post_type || "Platform-wide") + '</p><p>' + escapeHtml(post.content) + '</p>' + renderPostMedia(post) + reason + renderPostActions(post) + renderPostComments(post) + '</article>';
+    }
+
+    function renderPostMedia(post) {
+      const media = normalizeMedia(post.media_url);
+      if (!media.length) return "";
+      return '<div class="media-carousel" aria-label="Post images">' + media.map((src, index) => '<figure class="media-slide"><img class="post-media" src="' + escapeHtml(src) + '" alt="Post image ' + (index + 1) + '" /><figcaption class="media-count">' + (index + 1) + ' / ' + media.length + '</figcaption></figure>').join("") + '</div>';
+    }
+
+    function getPostInteractions(post) {
+      const likes = Number(localStorage.getItem(interactionKey(post, "likes")) || "0");
+      const liked = localStorage.getItem(interactionKey(post, "liked")) === "true";
+      const comments = JSON.parse(localStorage.getItem(interactionKey(post, "comments")) || "[]");
+      return { likes, liked, comments };
+    }
+
+    function renderPostActions(post) {
+      const state = getPostInteractions(post);
+      const key = escapeHtml(postKey(post));
+      return '<div class="post-actions"><button data-like-post="' + key + '" class="' + (state.liked ? "active" : "") + '">Like ' + state.likes + '</button><button data-comment-post="' + key + '">Comment ' + state.comments.length + '</button><button data-share-post="' + key + '">Share</button></div>';
+    }
+
+    function renderPostComments(post) {
+      const state = getPostInteractions(post);
+      const key = escapeHtml(postKey(post));
+      return '<div class="comments" id="comments-' + key + '">' +
+        (state.comments.length ? state.comments.map((comment) => '<div class="comment-row"><strong>' + escapeHtml(comment.author || "You") + '</strong><p>' + escapeHtml(comment.text) + '</p></div>').join("") : '<p class="muted">No comments yet.</p>') +
+        '<div class="comment-form"><input data-comment-input="' + key + '" placeholder="Write a comment..." /><button data-add-comment="' + key + '">Post</button></div></div>';
+    }
+
+    function findRenderedPost(key) {
+      return feedPosts.concat(myPosts, ownerReviewPosts).find((post) => postKey(post) === key);
+    }
+
+    function bindPostActions() {
+      document.querySelectorAll("[data-like-post]").forEach((button) => {
+        button.onclick = () => {
+          const post = findRenderedPost(button.dataset.likePost);
+          if (!post) return;
+          const state = getPostInteractions(post);
+          const nextLiked = !state.liked;
+          localStorage.setItem(interactionKey(post, "liked"), String(nextLiked));
+          localStorage.setItem(interactionKey(post, "likes"), String(Math.max(0, state.likes + (nextLiked ? 1 : -1))));
+          renderFeedPosts();
+        };
+      });
+      document.querySelectorAll("[data-share-post]").forEach((button) => {
+        button.onclick = async () => {
+          const url = location.origin + location.pathname + "#post-" + button.dataset.sharePost;
+          if (navigator.clipboard) await navigator.clipboard.writeText(url);
+          button.textContent = "Copied";
+          setTimeout(() => { button.textContent = "Share"; }, 1200);
+        };
+      });
+      document.querySelectorAll("[data-add-comment]").forEach((button) => {
+        button.onclick = () => {
+          const post = findRenderedPost(button.dataset.addComment);
+          const input = document.querySelector('[data-comment-input="' + button.dataset.addComment + '"]');
+          if (!post || !input || !input.value.trim()) return;
+          const state = getPostInteractions(post);
+          state.comments.push({ author: user?.name || "You", text: input.value.trim(), created_at: new Date().toISOString() });
+          localStorage.setItem(interactionKey(post, "comments"), JSON.stringify(state.comments));
+          renderFeedPosts();
+        };
+      });
     }
 
     function renderMyPosts() {
@@ -677,19 +793,21 @@ const html = `<!doctype html>
     async function submitWorkspacePost() {
       const content = document.getElementById("post").value.trim();
       const mediaUrl = document.getElementById("media-url").value.trim();
+      const mediaUrls = [mediaUrl].filter(Boolean).concat(selectedPostImages.map((image) => image.src));
       const target = document.getElementById("target-id");
       const targetId = target ? target.value : "";
       if (!content) return;
       const response = await fetch(gatewayUrl + "/community/posts", {
         method: "POST",
         headers: { "content-type": "application/json", authorization: "Bearer " + token },
-        body: JSON.stringify({ content, post_type: postMode || "community_post", target_id: targetId, media_urls: mediaUrl ? [mediaUrl] : [] })
+        body: JSON.stringify({ content, post_type: postMode || "community_post", target_id: targetId, media_urls: mediaUrls })
       });
       const data = await response.json();
       document.getElementById("post-message").textContent = response.ok ? "Post submitted. Check the review queue below." : (data.message || data.error || "Post could not be submitted.");
       if (response.ok) {
         document.getElementById("post").value = "";
         document.getElementById("media-url").value = "";
+        clearSelectedPostImages();
         await renderMyPostsTab();
       }
     }
