@@ -248,44 +248,46 @@ const html = `<!doctype html>
       document.getElementById("right-panel").innerHTML =
         '<div class="card"><h3>Account</h3><div class="stat-row"><span>Name</span><strong>' + user.name + '</strong></div><div class="stat-row"><span>Role</span><strong>' + user.roles.join(", ") + '</strong></div><div class="stat-row"><span>Gateway</span><strong>Online</strong></div></div>' +
         '<div class="card"><h3>Agent Health</h3><div class="stat-row"><span>Moderation</span><strong>Active</strong></div><div class="stat-row"><span>Ranking</span><strong>Session</strong></div><div class="stat-row"><span>Eligibility</span><strong>Nightly</strong></div></div>' +
-        '<div class="card"><h3>Next Step</h3><p class="muted">Connect production APIs and replace preview data with persisted PostgreSQL records.</p></div>';
+        '<div class="card"><h3>Persistence</h3><p class="muted">Records load from PostgreSQL when DATABASE_URL is configured, otherwise from local JSON storage.</p></div>';
     }
 
     function renderActiveTab() {
       setHeader(tabLabels[activeTab], tabSubtitles[activeTab]);
       renderRightPanel();
       if (activeTab === "feed") return renderFeedTab();
-      if (activeTab === "courses") return renderCards("Courses", [
-        ["AI Career Foundations", "Recommended from onboarding answers.", "Open roadmap"],
-        ["Live Class: Data Skills", "Organization and grade filters supported.", "Scheduled"],
-        ["Premium Roadmap", "Unlocks roadmap plus 15 matching jobs.", "Premium"]
-      ]);
-      if (activeTab === "jobs") return renderCards("Jobs", [
-        ["Junior Data Analyst", "Karachi - one-click apply.", "Apply"],
-        ["Frontend Intern", "Remote - recruiter paid posting.", "Remote"],
-        ["Product Associate", "Priority ranking for premium profiles.", "Boosted"]
-      ]);
-      if (activeTab === "community") return renderCards("Community", [
-        ["AI and Data Community", "Public discussion space.", "Subscribed"],
-        ["Career Switchers", "AI-moderated posts from subscribed members.", "Active"],
-        ["Student Help Desk", "Ask questions and follow updates.", "Public"]
-      ]);
-      if (activeTab === "channels") return renderCards("Channels", [
-        ["Product Careers Channel", "Free creator channel.", "Follow"],
-        ["Premium Data Mentorship", "Paid private channel via Stripe.", "$"],
-        ["Teacher Materials", "Async course-linked channel.", "Course"]
-      ]);
-      if (activeTab === "admin") return renderCards("Admin", [
-        ["Moderation Log", "Read-only: pending, approved, rejected, removed.", "View"],
-        ["Agent Health", "Queue depth, error rate, restart controls.", "Healthy"],
-        ["Feature Flags", "Toggle emergency flags and thresholds.", "Config"]
-      ]);
+      if (activeTab === "courses") return renderApiCards("Courses", "/courses", "courses", (item) => [item.title, item.description || item.category || "Course record", item.is_paid ? "Paid" : "Free"]);
+      if (activeTab === "jobs") return renderApiCards("Jobs", "/jobs", "jobs", (item) => [item.title, (item.company || "Company") + " - " + (item.location || "Location TBD"), item.is_active === false ? "Draft" : "Active"]);
+      if (activeTab === "community") return renderApiCards("Community", "/community/communities", "communities", (item) => [item.name, item.description || "Community record", (item.subscriber_count || 0) + " members"]);
+      if (activeTab === "channels") return renderApiCards("Channels", "/community/channels", "channels", (item) => [item.name, item.description || "Channel record", item.is_paid ? "Paid" : "Free"]);
+      if (activeTab === "admin") return renderAdminTab();
     }
 
     function renderCards(title, rows) {
       document.getElementById("main-panel").innerHTML =
         '<div class="page-header"><h2>' + title + '</h2><p class="muted">' + tabSubtitles[activeTab] + '</p></div>' +
         '<div class="list-grid">' + rows.map((row) => '<article class="card preview-item"><div><strong>' + row[0] + '</strong><p class="muted">' + row[1] + '</p></div><span class="badge">' + row[2] + '</span></article>').join("") + '</div>';
+    }
+
+    async function renderApiCards(title, endpoint, key, mapRow) {
+      document.getElementById("main-panel").innerHTML = '<div class="page-header"><h2>' + title + '</h2><p class="muted">Loading persisted records...</p></div>';
+      const response = await fetch(gatewayUrl + endpoint, { headers: { authorization: "Bearer " + token } });
+      if (response.status === 401) return logout();
+      const payload = await response.json();
+      const rows = (payload[key] || []).map(mapRow);
+      renderCards(title, rows.length ? rows : [["No records yet", "Create records from the owning service API.", "Empty"]]);
+    }
+
+    async function renderAdminTab() {
+      document.getElementById("main-panel").innerHTML = '<div class="page-header"><h2>Admin</h2><p class="muted">Loading persisted operations data...</p></div>';
+      const response = await fetch(gatewayUrl + "/admin/overview", { headers: { authorization: "Bearer " + token } });
+      if (response.status === 401) return logout();
+      if (response.status === 403) return renderCards("Admin", [["Admin role required", "Use Admin Login to access oversight panels.", "Locked"]]);
+      const payload = await response.json();
+      renderCards("Admin", [
+        ["Moderation Log", (payload.moderation_log || []).length + " persisted moderation records.", "View"],
+        ["Agent Logs", (payload.agent_logs || []).length + " persisted agent executions.", "Healthy"],
+        ["Feature Flags", Object.keys(payload.feature_flags || {}).length + " configurable flags.", payload.persistence || "storage"]
+      ]);
     }
 
     async function renderFeedTab() {
