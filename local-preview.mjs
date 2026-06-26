@@ -100,10 +100,15 @@ const html = `<!doctype html>
     .auth-options { display: grid; gap: 12px; margin-top: 18px; }
     .oauth-button { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; background: #0d1729; border: 1px solid var(--line); color: var(--ink); }
     .oauth-button:hover { background: #17243d; }
+    .auth-divider { display: flex; align-items: center; gap: 12px; margin: 18px 0; color: var(--muted); font-size: 13px; }
+    .auth-divider::before, .auth-divider::after { content: ""; height: 1px; background: var(--line); flex: 1; }
     .pill-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
     .mini-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; }
     .target-panel { margin-top: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,0.03); }
     .theme-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
+    .section-separator { border: 0; border-top: 1px solid var(--line); margin: 22px 0; }
+    .section-label { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 10px 0 12px; }
+    .section-label h3 { margin: 0; }
     @media (max-width: 950px) {
       .app-shell { grid-template-columns: 1fr; }
       .sidebar { position: static; height: auto; }
@@ -153,7 +158,22 @@ const html = `<!doctype html>
       </section>
       <section id="auth-panel" class="auth-card hidden">
         <h2 id="auth-title">Login to LearnLink</h2>
-        <p class="muted">Continue with one account provider. Local preview creates a secure demo session for the selected provider.</p>
+        <p class="muted">Use your LearnLink account or continue with a connected provider.</p>
+        <label>Name<input id="auth-name" placeholder="Your full name" /></label>
+        <label>Email<input id="auth-email" placeholder="you@example.com" /></label>
+        <label>Password<input id="auth-password" type="password" placeholder="At least 8 characters" /></label>
+        <label>Profile type
+          <select id="auth-role">
+            <option value="student">Student</option>
+            <option value="teacher">Teacher</option>
+            <option value="recruiter">Recruiter</option>
+          </select>
+        </label>
+        <p class="actions">
+          <button id="login-submit">Login</button>
+          <button class="secondary" id="signup-submit">Create account</button>
+        </p>
+        <div class="auth-divider">or continue with</div>
         <div class="auth-options">
           <button class="oauth-button" data-provider="google">G Continue with Google</button>
           <button class="oauth-button" data-provider="github">GitHub Continue with GitHub</button>
@@ -234,10 +254,16 @@ const html = `<!doctype html>
           authMode = button.dataset.authMode;
           document.getElementById("auth-title").textContent = authMode === "signup" ? "Create LearnLink account" : "Login to LearnLink";
           document.getElementById("auth-error").textContent = "";
+          document.getElementById("auth-name").value = "";
+          document.getElementById("auth-email").value = "";
+          document.getElementById("auth-password").value = "";
+          document.getElementById("auth-role").value = "student";
           hide("landing");
           show("auth-panel");
         });
       });
+      document.getElementById("login-submit").onclick = () => authenticateCredentials("login");
+      document.getElementById("signup-submit").onclick = () => authenticateCredentials("signup");
       document.querySelectorAll("[data-provider]").forEach((button) => {
         button.addEventListener("click", () => authenticateProvider(button.dataset.provider));
       });
@@ -304,8 +330,8 @@ const html = `<!doctype html>
       if (activeTab === "my_posts") return renderMyPostsTab();
       if (activeTab === "courses") return renderApiCards("Courses", "/courses", "courses", (item) => [item.title, item.description || item.category || "Course record", item.is_paid ? "Paid" : "Free"]);
       if (activeTab === "jobs") return renderApiCards("Jobs", "/jobs", "jobs", (item) => [item.title, (item.company || "Company") + " - " + (item.location || "Location TBD"), item.is_active === false ? "Draft" : "Active"]);
-      if (activeTab === "community") return renderApiCards("Community", "/community/communities", "communities", (item) => [item.name, item.description || "Community record", (item.subscriber_count || 0) + " members"]);
-      if (activeTab === "channels") return renderApiCards("Channels", "/community/channels", "channels", (item) => [item.name, item.description || "Channel record", item.is_paid ? "Paid" : "Free"]);
+      if (activeTab === "community") return renderCommunityTab();
+      if (activeTab === "channels") return renderChannelsTab();
       if (activeTab === "admin") return renderAdminTab();
     }
 
@@ -326,6 +352,61 @@ const html = `<!doctype html>
       const payload = await response.json();
       const rows = (payload[key] || []).map(mapRow);
       renderCards(title, rows.length ? rows : [["No records yet", "Create records from the owning service API.", "Empty"]], composerType);
+    }
+
+    async function renderCommunityTab() {
+      document.getElementById("main-panel").innerHTML = '<div class="page-header"><h2>Community</h2><p class="muted">Loading communities...</p></div>';
+      const response = await fetch(gatewayUrl + "/community/communities", { headers: { authorization: "Bearer " + token } });
+      if (response.status === 401) return logout();
+      const payload = await response.json();
+      const communities = payload.communities || [];
+      renderGroupedDirectory({
+        title: "Community",
+        intro: "Your communities are shown first. Public communities from all around the world are listed below.",
+        mineTitle: "Your Communities",
+        worldTitle: "All Around World Communities",
+        items: communities,
+        emptyMine: "You have not created a community yet. Create one from My Posts.",
+        emptyWorld: "No public communities found.",
+        badge: (item) => item.allows_public_posts ? "public posting" : "owner curated",
+        description: (item) => item.description || "Community record"
+      });
+    }
+
+    async function renderChannelsTab() {
+      document.getElementById("main-panel").innerHTML = '<div class="page-header"><h2>Channels</h2><p class="muted">Loading channels...</p></div>';
+      const response = await fetch(gatewayUrl + "/community/channels", { headers: { authorization: "Bearer " + token } });
+      if (response.status === 401) return logout();
+      const payload = await response.json();
+      const channels = payload.channels || [];
+      renderGroupedDirectory({
+        title: "Channels",
+        intro: "Your channels are shown first. Creator channels from all around the world are listed below.",
+        mineTitle: "Your Channels",
+        worldTitle: "All Around World Channels",
+        items: channels,
+        emptyMine: "You have not created a channel yet. Create one from My Posts before posting.",
+        emptyWorld: "No global channels found.",
+        badge: (item) => item.is_paid ? "paid" : "free",
+        description: (item) => item.description || "Channel record"
+      });
+    }
+
+    function renderGroupedDirectory({ title, intro, mineTitle, worldTitle, items, emptyMine, emptyWorld, badge, description }) {
+      const filtered = items.filter((item) => !searchQuery || (String(item.name || "") + " " + String(item.description || "")).toLowerCase().includes(searchQuery));
+      const mine = filtered.filter((item) => String(item.owner_id || "") === String(user.id || ""));
+      const world = filtered.filter((item) => String(item.owner_id || "") !== String(user.id || ""));
+      document.getElementById("main-panel").innerHTML =
+        '<div class="page-header"><h2>' + title + '</h2><p class="muted">' + intro + '</p></div>' +
+        renderDirectorySection(mineTitle, mine, emptyMine, badge, description) +
+        '<hr class="section-separator" />' +
+        renderDirectorySection(worldTitle, world, emptyWorld, badge, description);
+    }
+
+    function renderDirectorySection(title, rows, emptyText, badge, description) {
+      return '<section><div class="section-label"><h3>' + escapeHtml(title) + '</h3><span class="muted">' + rows.length + ' total</span></div><div class="list-grid">' +
+        (rows.length ? rows.map((item) => '<article class="card preview-item"><div><strong>' + escapeHtml(item.name) + '</strong><p class="muted">' + escapeHtml(description(item)) + '</p></div><span class="badge">' + escapeHtml(badge(item)) + '</span></article>').join("") : '<article class="card"><h3>' + escapeHtml(emptyText) + '</h3></article>') +
+        '</div></section>';
     }
 
     function renderInlineComposer(postType) {
@@ -470,7 +551,7 @@ const html = `<!doctype html>
       const panel = document.getElementById("owner-review");
       if (!panel) return;
       const rows = ownerReviewPosts.filter((post) => matchesQuery(post, ["source", "content", "author", "ai_moderation_reason"]));
-      panel.innerHTML = '<div class="page-header"><h2>Owner Approvals</h2><p class="muted">Posts submitted to communities you own appear here after AI analysis.</p></div>' +
+      panel.innerHTML = '<div class="page-header"><h2>Community Approval Requests</h2><p class="muted">Posts submitted to communities you own appear here after AI analysis. Channel posts you own are approved directly after AI analysis.</p></div>' +
         '<div class="list-grid">' + (rows.length ? rows.map((post) => '<article class="card feed-card"><h3>' + escapeHtml(post.author || "LearnLink user") + ' <span class="badge pending">owner approval</span></h3><p class="muted">' + escapeHtml(post.source || "Community post") + '</p><p>' + escapeHtml(post.content) + '</p><p class="muted">' + escapeHtml(post.ai_moderation_reason || "AI analysis complete.") + '</p><button data-approve-post="' + escapeHtml(post.id) + '">Approve post</button></article>').join("") : '<article class="card"><h3>No owner approvals</h3><p class="muted">Community submissions needing your approval will appear here.</p></article>') + '</div>';
       document.querySelectorAll("[data-approve-post]").forEach((button) => {
         button.onclick = async () => {
@@ -487,6 +568,30 @@ const html = `<!doctype html>
       const status = post.status || post.ai_moderation_status || "pending";
       const reason = post.ai_moderation_reason ? '<p class="muted">' + escapeHtml(post.ai_moderation_reason) + '</p>' : "";
       return '<article style="border-top:1px solid var(--line);padding-top:12px;margin-top:12px"><strong>' + escapeHtml(post.source || post.post_type) + '</strong><p>' + escapeHtml(post.content) + '</p><span class="badge ' + escapeHtml(status) + '">' + escapeHtml(status) + '</span>' + reason + '</article>';
+    }
+
+    async function authenticateCredentials(mode) {
+      const name = document.getElementById("auth-name").value.trim();
+      const email = document.getElementById("auth-email").value.trim();
+      const password = document.getElementById("auth-password").value;
+      const role = document.getElementById("auth-role").value;
+      const body = mode === "signup" ? { name, email, password, roles: [role] } : { email, password };
+      const response = await fetch(gatewayUrl + "/auth/" + mode, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        document.getElementById("auth-error").textContent = data.message || data.error || "Authentication failed";
+        return;
+      }
+      token = data.token;
+      user = data.user;
+      activeTab = "feed";
+      localStorage.setItem("learnlink_token", token);
+      localStorage.setItem("learnlink_user", JSON.stringify(user));
+      renderShell();
     }
 
     async function authenticateProvider(provider) {
@@ -510,7 +615,7 @@ const html = `<!doctype html>
         response = await fetch(gatewayUrl + "/auth/signup", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ name: profile.name, email: profile.email, password: profile.password, roles: ["student"] })
+          body: JSON.stringify({ name: profile.name, email: profile.email, password: profile.password, roles: [document.getElementById("auth-role").value || "student"] })
         });
         data = await response.json();
       }
