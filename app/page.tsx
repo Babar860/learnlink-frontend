@@ -1,3 +1,7 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
 type FeedPost = {
   id?: string;
   author?: string;
@@ -10,133 +14,218 @@ type FeedPost = {
   post_type?: string;
 };
 
-const fallbackPosts: FeedPost[] = [
+type LocalUser = {
+  id: string;
+  email: string;
+  name: string;
+  roles: string[];
+};
+
+const featureCards = [
   {
-    author: "Ayesha Khan",
-    source: "AI and Data Community",
-    status: "approved",
-    content: "Built a small classifier today and want feedback on model evaluation.",
-    metrics: "42 likes - 11 comments"
+    title: "Personalized Learning",
+    description: "Resume and onboarding-aware course recommendations, teacher uploads, quizzes, roadmaps, and live classes."
   },
   {
-    author: "Bilal Ahmed",
-    source: "Product Careers Channel",
-    status: "approved",
-    content: "Shared a roadmap for moving from support into junior product roles.",
-    metrics: "28 likes - 6 comments"
+    title: "Community and Channels",
+    description: "Public communities, creator channels, paid subscriptions, follows, and autonomous AI moderation before posts go live."
   },
   {
-    author: "Sara Noor",
-    source: "Platform-wide",
-    status: "pending",
-    content: "Draft post is waiting for autonomous AI moderation before it appears.",
-    metrics: "Moderation queue"
+    title: "Jobs and Growth",
+    description: "Recruiter job posts, job search, one-click apply, premium profile boosts, and role-matched learning paths."
   }
 ];
 
-const panels = [
-  ["Courses", "Resume-aware course discovery, teacher uploads, quizzes, live classes, premium key points."],
-  ["Community", "Public communities, free and paid channels, follows, AI-moderated posts."],
-  ["Jobs", "Paid recruiter posting, keyword/location search, one-click apply, premium profile boosts."],
-  ["Admin", "Read-only automation dashboard for moderation logs, agent health, revenue, and flags."]
-];
+const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL ?? "http://localhost:4000";
 
-async function getFeedPosts(): Promise<{ posts: FeedPost[]; source: string }> {
-  const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL ?? "http://localhost:4000";
+export default function Home() {
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  const [showAuth, setShowAuth] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<LocalUser | null>(null);
+  const [posts, setPosts] = useState<FeedPost[]>([]);
+  const [content, setContent] = useState("");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState("student");
+  const [message, setMessage] = useState("");
 
-  try {
+  useEffect(() => {
+    const savedToken = window.localStorage.getItem("learnlink_token");
+    const savedUser = window.localStorage.getItem("learnlink_user");
+    if (savedToken && savedUser) {
+      setToken(savedToken);
+      setUser(JSON.parse(savedUser) as LocalUser);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (token) {
+      loadFeed(token);
+    }
+  }, [token]);
+
+  async function loadFeed(activeToken: string) {
     const response = await fetch(`${gatewayUrl}/community/feed/demo-user`, {
-      cache: "no-store"
+      headers: { authorization: `Bearer ${activeToken}` }
     });
 
-    if (!response.ok) {
-      throw new Error(`Feed API returned ${response.status}`);
+    if (response.status === 401) {
+      logout();
+      return;
     }
 
     const data = (await response.json()) as { posts?: FeedPost[] };
-    return {
-      posts: data.posts?.length ? data.posts : fallbackPosts,
-      source: data.posts?.length ? "local backend" : "fallback"
-    };
-  } catch {
-    return { posts: fallbackPosts, source: "fallback" };
+    setPosts(data.posts ?? []);
   }
-}
 
-export default async function Home() {
-  const { posts, source } = await getFeedPosts();
+  async function authenticate() {
+    setMessage("");
+    const response = await fetch(`${gatewayUrl}/auth/${authMode}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name, email, roles: [role] })
+    });
+    const data = (await response.json()) as { token?: string; user?: LocalUser; error?: string };
+
+    if (!response.ok || !data.token || !data.user) {
+      setMessage(data.error ?? "Authentication failed");
+      return;
+    }
+
+    window.localStorage.setItem("learnlink_token", data.token);
+    window.localStorage.setItem("learnlink_user", JSON.stringify(data.user));
+    setToken(data.token);
+    setUser(data.user);
+    setShowAuth(false);
+  }
+
+  async function createPost() {
+    if (!token || !content.trim()) return;
+    await fetch(`${gatewayUrl}/community/posts`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({ content, post_type: "platform_post" })
+    });
+    setContent("");
+    await loadFeed(token);
+  }
+
+  function logout() {
+    window.localStorage.removeItem("learnlink_token");
+    window.localStorage.removeItem("learnlink_user");
+    setToken(null);
+    setUser(null);
+    setPosts([]);
+  }
+
+  if (!token || !user) {
+    return (
+      <main className="min-h-screen bg-paper text-ink">
+        <header className="border-b border-line bg-white">
+          <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
+            <div>
+              <h1 className="text-xl font-semibold">LearnLink</h1>
+              <p className="text-sm text-slate-600">AI-operated education, community, and jobs</p>
+            </div>
+            <div className="flex gap-2">
+              <button className="rounded-md border border-line px-4 py-2" onClick={() => { setAuthMode("login"); setShowAuth(true); }}>Login</button>
+              <button className="rounded-md bg-brand px-4 py-2 text-white" onClick={() => { setAuthMode("signup"); setShowAuth(true); }}>Sign up</button>
+            </div>
+          </div>
+        </header>
+
+        <section className="mx-auto max-w-7xl px-4 py-10">
+          {!showAuth ? (
+            <>
+              <div className="max-w-3xl py-8">
+                <h2 className="text-4xl font-semibold">LearnLink</h2>
+                <p className="mt-4 text-lg leading-8 text-slate-600">
+                  Build skills, join AI-moderated communities, attend live classes, and find career opportunities from one connected learning platform.
+                </p>
+                <div className="mt-6 flex gap-3">
+                  <button className="rounded-md bg-brand px-4 py-2 text-white" onClick={() => { setAuthMode("signup"); setShowAuth(true); }}>Create account</button>
+                  <button className="rounded-md border border-line px-4 py-2" onClick={() => { setAuthMode("login"); setShowAuth(true); }}>Login</button>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                {featureCards.map((feature) => (
+                  <article key={feature.title} className="rounded-lg border border-line bg-white p-5">
+                    <h3 className="font-semibold">{feature.title}</h3>
+                    <p className="mt-3 leading-7 text-slate-600">{feature.description}</p>
+                  </article>
+                ))}
+              </div>
+            </>
+          ) : (
+            <section className="max-w-xl rounded-lg border border-line bg-white p-5">
+              <h2 className="text-2xl font-semibold">{authMode === "signup" ? "Create account" : "Login"}</h2>
+              <p className="mt-2 text-slate-600">A local dev account unlocks the preview feed.</p>
+              <label className="mt-4 block text-sm font-medium">Name<input className="mt-2 w-full rounded-md border border-line p-3" value={name} onChange={(event) => setName(event.target.value)} /></label>
+              <label className="mt-4 block text-sm font-medium">Email<input className="mt-2 w-full rounded-md border border-line p-3" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+              <label className="mt-4 block text-sm font-medium">Role
+                <select className="mt-2 w-full rounded-md border border-line p-3" value={role} onChange={(event) => setRole(event.target.value)}>
+                  <option value="student">Student</option>
+                  <option value="teacher">Teacher</option>
+                  <option value="recruiter">Recruiter</option>
+                </select>
+              </label>
+              <div className="mt-5 flex gap-2">
+                <button className="rounded-md bg-brand px-4 py-2 text-white" onClick={authenticate}>Continue</button>
+                <button className="rounded-md border border-line px-4 py-2" onClick={() => setShowAuth(false)}>Back</button>
+              </div>
+              {message ? <p className="mt-3 text-sm text-slate-600">{message}</p> : null}
+            </section>
+          )}
+        </section>
+      </main>
+    );
+  }
 
   return (
-    <main className="min-h-screen">
-      <header className="sticky top-0 z-10 border-b border-line bg-white/95">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
+    <main className="min-h-screen bg-paper text-ink">
+      <header className="border-b border-line bg-white">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
           <div>
-            <h1 className="text-xl font-semibold tracking-normal">LearnLink</h1>
-            <p className="text-sm text-slate-600">Home feed - courses - jobs - community</p>
+            <h1 className="text-xl font-semibold">LearnLink</h1>
+            <p className="text-sm text-slate-600">Signed in as {user.name}</p>
           </div>
-          <nav className="flex gap-2 text-sm">
-            <a className="rounded-md border border-line px-3 py-2" href="#feed">Feed</a>
-            <a className="rounded-md border border-line px-3 py-2" href="#portals">Portals</a>
-            <a className="rounded-md bg-brand px-3 py-2 text-white" href="#create">Post</a>
-          </nav>
+          <button className="rounded-md border border-line px-4 py-2" onClick={logout}>Logout</button>
         </div>
       </header>
 
       <section className="mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[1fr_320px]">
-        <div id="feed" className="space-y-4">
-          <div id="create" className="rounded-lg border border-line bg-white p-4">
-            <label className="text-sm font-medium" htmlFor="post">Create platform post</label>
-            <textarea
-              id="post"
-              className="mt-2 min-h-28 w-full rounded-md border border-line p-3"
-              placeholder="Share an update. It will be reviewed by the content-moderation-agent before publishing."
-            />
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button className="rounded-md bg-brand px-4 py-2 text-white">Submit for AI Review</button>
-              <button className="rounded-md border border-line px-4 py-2">Add media</button>
-            </div>
+        <div className="space-y-4">
+          <div className="rounded-lg border border-line bg-white p-4">
+            <h2 className="font-semibold">Create platform post</h2>
+            <p className="mt-1 text-sm text-slate-600">Only logged-in users can create or view posts.</p>
+            <textarea className="mt-3 min-h-28 w-full rounded-md border border-line p-3" value={content} onChange={(event) => setContent(event.target.value)} placeholder="Write a local test post" />
+            <button className="mt-3 rounded-md bg-brand px-4 py-2 text-white" onClick={createPost}>Submit for AI Review</button>
           </div>
 
           {posts.map((post) => {
             const status = post.status ?? post.ai_moderation_status ?? "approved";
-
             return (
               <article key={`${post.id ?? post.author ?? post.author_id}-${post.content}`} className="rounded-lg border border-line bg-white p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h2 className="font-semibold">{post.author ?? post.author_id ?? "LearnLink user"}</h2>
-                    <p className="text-sm text-slate-600">{post.source ?? post.post_type ?? "Platform-wide"}</p>
-                  </div>
-                  <span className={`rounded-full px-3 py-1 text-xs ${status === "approved" ? "bg-emerald-50 text-success" : "bg-slate-100 text-slate-700"}`}>
-                    {status}
-                  </span>
-                </div>
-                <p className="mt-4 text-base leading-7">{post.content}</p>
+                <h2 className="font-semibold">{post.author ?? post.author_id ?? "LearnLink user"} <span className="ml-2 rounded-full bg-emerald-50 px-3 py-1 text-xs text-success">{status}</span></h2>
+                <p className="mt-3 text-sm text-slate-600">{post.source ?? post.post_type ?? "Platform-wide"}</p>
+                <p className="mt-4 leading-7">{post.content}</p>
                 <p className="mt-4 text-sm text-slate-600">{post.metrics ?? "Live API item"}</p>
               </article>
             );
           })}
         </div>
 
-        <aside id="portals" className="space-y-3">
-          {panels.map(([title, description]) => (
-            <section key={title} className="rounded-lg border border-line bg-white p-4">
-              <h2 className="font-semibold">{title}</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
-            </section>
-          ))}
+        <aside className="space-y-3">
           <section className="rounded-lg border border-line bg-white p-4">
-            <h2 className="font-semibold">Agent Health</h2>
-            <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
-              <dt className="text-slate-600">Feed source</dt>
-              <dd className="font-medium">{source}</dd>
-              <dt className="text-slate-600">Moderation</dt>
-              <dd className="font-medium">Autonomous</dd>
-              <dt className="text-slate-600">Ranking</dt>
-              <dd className="font-medium">Per session</dd>
-              <dt className="text-slate-600">Eligibility</dt>
-              <dd className="font-medium">Nightly</dd>
-            </dl>
+            <h2 className="font-semibold">Account</h2>
+            <p className="mt-2 text-sm text-slate-600">{user.email}</p>
+            <p className="mt-1 text-sm text-slate-600">{user.roles.join(", ")}</p>
+          </section>
+          <section className="rounded-lg border border-line bg-white p-4">
+            <h2 className="font-semibold">Feed source</h2>
+            <p className="mt-2 text-sm text-slate-600">Local backend</p>
           </section>
         </aside>
       </section>
