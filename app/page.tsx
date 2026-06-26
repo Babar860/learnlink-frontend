@@ -44,6 +44,7 @@ export default function Home() {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<LocalUser | null>(null);
   const [posts, setPosts] = useState<FeedPost[]>([]);
+  const [activeTab, setActiveTab] = useState("feed");
   const [content, setContent] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -97,6 +98,7 @@ export default function Home() {
     window.localStorage.setItem("learnlink_user", JSON.stringify(data.user));
     setToken(data.token);
     setUser(data.user);
+    setActiveTab(data.user.roles.includes("admin") ? "admin" : "feed");
     setShowAuth(false);
   }
 
@@ -117,7 +119,18 @@ export default function Home() {
     setToken(null);
     setUser(null);
     setPosts([]);
+    setActiveTab("feed");
   }
+
+  function openAuth(mode: "login" | "signup" | "admin") {
+    setAuthMode(mode === "admin" ? "signup" : mode);
+    setRole(mode === "admin" ? "admin" : "student");
+    setName(mode === "admin" ? "Admin User" : "");
+    setEmail(mode === "admin" ? "admin@learnlink.local" : "");
+    setShowAuth(true);
+  }
+
+  const tabs = ["feed", "courses", "jobs", "community", "channels", ...(user?.roles.includes("admin") ? ["admin"] : [])];
 
   if (!token || !user) {
     return (
@@ -129,8 +142,9 @@ export default function Home() {
               <p className="text-sm text-slate-600">AI-operated education, community, and jobs</p>
             </div>
             <div className="flex gap-2">
-              <button className="rounded-md border border-line px-4 py-2" onClick={() => { setAuthMode("login"); setShowAuth(true); }}>Login</button>
-              <button className="rounded-md bg-brand px-4 py-2 text-white" onClick={() => { setAuthMode("signup"); setShowAuth(true); }}>Sign up</button>
+              <button className="rounded-md border border-line px-4 py-2" onClick={() => openAuth("login")}>Login</button>
+              <button className="rounded-md bg-brand px-4 py-2 text-white" onClick={() => openAuth("signup")}>Sign up</button>
+              <button className="rounded-md border border-line px-4 py-2" onClick={() => openAuth("admin")}>Admin Login</button>
             </div>
           </div>
         </header>
@@ -144,8 +158,9 @@ export default function Home() {
                   Build skills, join AI-moderated communities, attend live classes, and find career opportunities from one connected learning platform.
                 </p>
                 <div className="mt-6 flex gap-3">
-                  <button className="rounded-md bg-brand px-4 py-2 text-white" onClick={() => { setAuthMode("signup"); setShowAuth(true); }}>Create account</button>
-                  <button className="rounded-md border border-line px-4 py-2" onClick={() => { setAuthMode("login"); setShowAuth(true); }}>Login</button>
+                  <button className="rounded-md bg-brand px-4 py-2 text-white" onClick={() => openAuth("signup")}>Create account</button>
+                  <button className="rounded-md border border-line px-4 py-2" onClick={() => openAuth("login")}>Login</button>
+                  <button className="rounded-md border border-line px-4 py-2" onClick={() => openAuth("admin")}>Admin Login</button>
                 </div>
               </div>
 
@@ -169,6 +184,7 @@ export default function Home() {
                   <option value="student">Student</option>
                   <option value="teacher">Teacher</option>
                   <option value="recruiter">Recruiter</option>
+                  <option value="admin">Admin</option>
                 </select>
               </label>
               <div className="mt-5 flex gap-2">
@@ -197,14 +213,28 @@ export default function Home() {
 
       <section className="mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-4">
-          <div className="rounded-lg border border-line bg-white p-4">
+          <div className="flex flex-wrap gap-2">
+            {tabs.map((tab) => (
+              <button
+                key={tab}
+                className={`rounded-md border border-line px-4 py-2 ${activeTab === tab ? "bg-brand text-white" : "bg-white"}`}
+                onClick={() => setActiveTab(tab)}
+              >
+                {tab[0].toUpperCase() + tab.slice(1)}
+              </button>
+            ))}
+          </div>
+
+          {activeTab === "feed" ? (
+          <>
+            <div className="rounded-lg border border-line bg-white p-4">
             <h2 className="font-semibold">Create platform post</h2>
             <p className="mt-1 text-sm text-slate-600">Only logged-in users can create or view posts.</p>
             <textarea className="mt-3 min-h-28 w-full rounded-md border border-line p-3" value={content} onChange={(event) => setContent(event.target.value)} placeholder="Write a local test post" />
             <button className="mt-3 rounded-md bg-brand px-4 py-2 text-white" onClick={createPost}>Submit for AI Review</button>
-          </div>
+            </div>
 
-          {posts.map((post) => {
+            {posts.map((post) => {
             const status = post.status ?? post.ai_moderation_status ?? "approved";
             return (
               <article key={`${post.id ?? post.author ?? post.author_id}-${post.content}`} className="rounded-lg border border-line bg-white p-4">
@@ -214,7 +244,18 @@ export default function Home() {
                 <p className="mt-4 text-sm text-slate-600">{post.metrics ?? "Live API item"}</p>
               </article>
             );
-          })}
+            })}
+          </>
+          ) : (
+            <section className="rounded-lg border border-line bg-white p-5">
+              <h2 className="text-2xl font-semibold">{activeTab[0].toUpperCase() + activeTab.slice(1)}</h2>
+              <p className="mt-2 text-slate-600">
+                {activeTab === "admin"
+                  ? "Admin oversight dashboard: moderation log, agent health, feature flags, and user activity."
+                  : `Preview tab for LearnLink ${activeTab}. Full service data will render here when the production API is connected.`}
+              </p>
+            </section>
+          )}
         </div>
 
         <aside className="space-y-3">
