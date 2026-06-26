@@ -124,11 +124,14 @@ const html = `<!doctype html>
     .section-separator { border: 0; border-top: 1px solid var(--line); margin: 22px 0; }
     .section-label { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 10px 0 12px; }
     .section-label h3 { margin: 0; }
+    .portal-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .wide-card { grid-column: 1 / -1; }
+    .tiny { font-size: 12px; }
     @media (max-width: 950px) {
       .app-shell { grid-template-columns: 1fr; }
       .sidebar { position: static; height: auto; }
       .side-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .content-grid, .hero-panel, .feature-grid { grid-template-columns: 1fr; }
+      .content-grid, .hero-panel, .feature-grid, .portal-grid { grid-template-columns: 1fr; }
       .search { display: none; }
     }
   </style>
@@ -236,6 +239,7 @@ const html = `<!doctype html>
     let myChannels = [];
     let postableCommunities = [];
     let ownerReviewPosts = [];
+    let coursePortal = { courses: [], live_classes: [], video_hosting_mode: "third_party" };
     let searchQuery = "";
     let postMode = "community_post";
     let theme = localStorage.getItem("learnlink_theme") || "dark";
@@ -347,7 +351,7 @@ const html = `<!doctype html>
       renderRightPanel();
       if (activeTab === "feed") return renderFeedTab();
       if (activeTab === "my_posts") return renderMyPostsTab();
-      if (activeTab === "courses") return renderApiCards("Courses", "/courses", "courses", (item) => [item.title, item.description || item.category || "Course record", item.is_paid ? "Paid" : "Free"]);
+      if (activeTab === "courses") return renderCoursesTab();
       if (activeTab === "jobs") return renderApiCards("Jobs", "/jobs", "jobs", (item) => [item.title, (item.company || "Company") + " - " + (item.location || "Location TBD"), item.is_active === false ? "Draft" : "Active"]);
       if (activeTab === "community") return renderCommunityTab();
       if (activeTab === "channels") return renderChannelsTab();
@@ -371,6 +375,126 @@ const html = `<!doctype html>
       const payload = await response.json();
       const rows = (payload[key] || []).map(mapRow);
       renderCards(title, rows.length ? rows : [["No records yet", "Create records from the owning service API.", "Empty"]], composerType);
+    }
+
+    async function renderCoursesTab() {
+      document.getElementById("main-panel").innerHTML = '<div class="page-header"><h2>Courses</h2><p class="muted">Loading course portal...</p></div>';
+      const response = await fetch(gatewayUrl + "/courses", { headers: { authorization: "Bearer " + token } });
+      if (response.status === 401) return logout();
+      coursePortal = await response.json();
+      const isTeacher = user.roles.includes("teacher");
+      const courses = (coursePortal.courses || []).filter((course) => matchesQuery(course, ["title", "description", "category", "teacher_name"]));
+      const liveClasses = (coursePortal.live_classes || []).filter((liveClass) => matchesQuery(liveClass, ["title", "course_title", "teacher_name", "grade"]));
+      document.getElementById("main-panel").innerHTML =
+        '<div class="page-header"><h2>Course Portal</h2><p class="muted">Student discovery, teacher uploads, live classes, quiz conversion, validation, key points, and grading.</p></div>' +
+        '<div class="portal-grid">' +
+          (isTeacher ? renderCourseUploadForm() + renderLiveClassForm() : '<article class="card wide-card"><h3>Student Courses Portal</h3><p class="muted">Teachers see upload and live-class controls here. Students can join open or validated classes.</p></article>') +
+          '<section class="card wide-card"><h3>Course Discovery</h3><p class="muted">Video mode: ' + escapeHtml(coursePortal.video_hosting_mode || "third_party") + '. Paid courses and roadmaps are surfaced here.</p><div class="list-grid">' + (courses.length ? courses.map(renderCourseCard).join("") : '<article class="card"><h3>No courses found</h3><p class="muted">Upload a course as a teacher or try another search.</p></article>') + '</div></section>' +
+          '<section class="card wide-card"><h3>Live Classes</h3><p class="muted">Open classes are joinable directly. Organization restricted classes ask for registration number.</p><div class="list-grid">' + (liveClasses.length ? liveClasses.map(renderLiveClassCard).join("") : '<article class="card"><h3>No live classes found</h3><p class="muted">Teachers can create scheduled or immediate classes above.</p></article>') + '</div></section>' +
+        '</div>';
+      bindCoursePortal();
+    }
+
+    function renderCourseUploadForm() {
+      return '<section class="card"><h3>Upload Course</h3><label>Title<input id="course-title" placeholder="AI Career Foundations" /></label><label>Description<textarea id="course-description" placeholder="What students will learn"></textarea></label><div class="form-grid"><label>Category<input id="course-category" placeholder="ai-and-data" /></label><label>Price<input id="course-price" type="number" min="0" value="0" /></label></div><div class="form-grid"><label>Section<input id="course-section" placeholder="Getting started" /></label><label>Lesson<input id="course-lesson" placeholder="Intro lesson" /></label></div><label>Video URL<input id="course-video" placeholder="Mux/Bunny/Cloudflare Stream URL" /></label><label>Video size bytes<input id="course-video-size" type="number" min="0" value="0" /></label><label>Quiz prompt for AI conversion<textarea id="course-quiz" placeholder="Paste question text or describe uploaded quiz image"></textarea></label><label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input id="course-paid" type="checkbox" style="width:auto;margin:0" /> Paid course</label><p class="actions"><button id="course-submit">Upload course</button><button class="secondary" id="quiz-convert">Preview AI quiz conversion</button></p><p id="course-message" class="muted tiny"></p><pre id="quiz-preview" class="muted tiny"></pre></section>';
+    }
+
+    function renderLiveClassForm() {
+      const options = (coursePortal.courses || []).filter((course) => String(course.teacher_id || "") === String(user.id || "")).map((course) => '<option value="' + escapeHtml(course.id) + '">' + escapeHtml(course.title) + '</option>').join("");
+      return '<section class="card"><h3>Create Live Class</h3><label>Title<input id="live-title" placeholder="Live Class: Data Skills" /></label><label>Course<select id="live-course"><option value="">No course link</option>' + options + '</select></label><label>Scheduled at<input id="live-scheduled" type="datetime-local" /></label><div class="form-grid"><label>Organization ID<input id="live-org" placeholder="optional org restriction" /></label><label>Grade/year<input id="live-grade" placeholder="optional grade" /></label></div><p class="actions"><button id="live-submit">Create live class</button></p><p id="live-message" class="muted tiny"></p></section>';
+    }
+
+    function renderCourseCard(course) {
+      return '<article class="card preview-item"><div><strong>' + escapeHtml(course.title) + '</strong><p class="muted">' + escapeHtml(course.description || "") + '</p><p class="muted tiny">Teacher: ' + escapeHtml(course.teacher_name || "LearnLink teacher") + ' | Sections: ' + Number(course.section_count || 0) + ' | Lessons: ' + Number(course.lesson_count || 0) + '</p></div><span class="badge">' + (course.is_paid ? "Paid" : "Free") + '</span></article>';
+    }
+
+    function renderLiveClassCard(liveClass) {
+      const mine = String(liveClass.teacher_id || "") === String(user.id || "");
+      const key = escapeHtml(liveClass.id);
+      return '<article class="card"><h3>' + escapeHtml(liveClass.title) + ' <span class="badge">' + escapeHtml(liveClass.status || "scheduled") + '</span></h3><p class="muted">' + escapeHtml(liveClass.course_title || "No linked course") + ' | Teacher: ' + escapeHtml(liveClass.teacher_name || "LearnLink teacher") + '</p><p class="muted tiny">Join link: ' + escapeHtml(liveClass.join_link || "") + ' | ' + (liveClass.is_open ? "Open" : "Validated") + ' | Enrolled: ' + Number(liveClass.enrollment_count || 0) + '</p><div class="form-grid"><label>Registration number<input data-registration="' + key + '" placeholder="required for org classes" /></label><label>Device fingerprint<input data-device="' + key + '" value="local-device" /></label></div><p class="actions"><button data-join-live="' + key + '">Join class</button>' + (mine ? '<button data-start-quiz="' + key + '">Start quiz</button><button data-grade-quiz="' + key + '">Grade quiz</button><button data-keypoints="' + key + '">Key points</button>' : '<button data-submit-live-answer="' + key + '">Submit quiz answer</button>') + '</p><p class="muted tiny" id="live-status-' + key + '"></p></article>';
+    }
+
+    function bindCoursePortal() {
+      const courseSubmit = document.getElementById("course-submit");
+      if (courseSubmit) courseSubmit.onclick = submitCourseUpload;
+      const quizConvert = document.getElementById("quiz-convert");
+      if (quizConvert) quizConvert.onclick = previewQuizConversion;
+      const liveSubmit = document.getElementById("live-submit");
+      if (liveSubmit) liveSubmit.onclick = submitLiveClass;
+      document.querySelectorAll("[data-join-live]").forEach((button) => button.onclick = () => joinLiveClass(button.dataset.joinLive));
+      document.querySelectorAll("[data-start-quiz]").forEach((button) => button.onclick = () => startLiveQuiz(button.dataset.startQuiz));
+      document.querySelectorAll("[data-grade-quiz]").forEach((button) => button.onclick = () => gradeLiveQuiz(button.dataset.gradeQuiz));
+      document.querySelectorAll("[data-keypoints]").forEach((button) => button.onclick = () => extractKeyPoints(button.dataset.keypoints));
+      document.querySelectorAll("[data-submit-live-answer]").forEach((button) => button.onclick = () => submitLiveAnswer(button.dataset.submitLiveAnswer));
+    }
+
+    async function submitCourseUpload() {
+      const body = {
+        title: document.getElementById("course-title").value.trim(),
+        description: document.getElementById("course-description").value.trim(),
+        category: document.getElementById("course-category").value.trim() || "general",
+        is_paid: document.getElementById("course-paid").checked,
+        price: Number(document.getElementById("course-price").value || 0),
+        sections: [{ title: document.getElementById("course-section").value.trim() || "Introduction", order: 1, lessons: [{ title: document.getElementById("course-lesson").value.trim() || "Lesson 1", order: 1, video_url: document.getElementById("course-video").value.trim(), video_size_bytes: Number(document.getElementById("course-video-size").value || 0), quiz_prompt: document.getElementById("course-quiz").value.trim() }] }]
+      };
+      const response = await fetch(gatewayUrl + "/courses", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + token }, body: JSON.stringify(body) });
+      const data = await response.json();
+      document.getElementById("course-message").textContent = response.ok ? "Course uploaded with video billing metadata and quiz conversion." : (data.message || data.error || "Course upload failed.");
+      if (response.ok) await renderCoursesTab();
+    }
+
+    async function previewQuizConversion() {
+      const content = document.getElementById("course-quiz").value.trim();
+      const response = await fetch(gatewayUrl + "/courses/quizzes/convert", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + token }, body: JSON.stringify({ content }) });
+      const data = await response.json();
+      document.getElementById("quiz-preview").textContent = JSON.stringify(data.quiz || data, null, 2);
+    }
+
+    async function submitLiveClass() {
+      const body = { title: document.getElementById("live-title").value.trim(), course_id: document.getElementById("live-course").value, scheduled_at: document.getElementById("live-scheduled").value, organization_id: document.getElementById("live-org").value.trim(), grade: document.getElementById("live-grade").value.trim() };
+      const response = await fetch(gatewayUrl + "/courses/live-classes", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + token }, body: JSON.stringify(body) });
+      const data = await response.json();
+      document.getElementById("live-message").textContent = response.ok ? "Live class created with join link and reminders." : (data.message || data.error || "Live class creation failed.");
+      if (response.ok) await renderCoursesTab();
+    }
+
+    async function joinLiveClass(id) {
+      const response = await fetch(gatewayUrl + "/courses/live-classes/" + encodeURIComponent(id) + "/join", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + token }, body: JSON.stringify({ registration_number: document.querySelector('[data-registration="' + id + '"]')?.value || "", device_fingerprint: document.querySelector('[data-device="' + id + '"]')?.value || "local-device" }) });
+      const data = await response.json();
+      document.getElementById("live-status-" + id).textContent = response.ok ? "Joined. Validated: " + Boolean(data.enrollment?.validated) + ". One active device enforced." : (data.error || "Join failed.");
+    }
+
+    async function startLiveQuiz(id) {
+      const response = await fetch(gatewayUrl + "/courses/live-classes/" + encodeURIComponent(id) + "/quizzes/start", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + token }, body: JSON.stringify({ prompt: "What is the main point from this live class?" }) });
+      const data = await response.json();
+      window.learnlinkLastLiveQuizId = data.live_class_quiz?.id;
+      document.getElementById("live-status-" + id).textContent = response.ok ? "Quiz started and broadcast. Quiz session: " + data.live_class_quiz.id : (data.error || "Quiz start failed.");
+    }
+
+    async function submitLiveAnswer(id) {
+      if (!window.learnlinkLastLiveQuizId) {
+        document.getElementById("live-status-" + id).textContent = "No active quiz id in this preview session.";
+        return;
+      }
+      const response = await fetch(gatewayUrl + "/courses/live-classes/quizzes/" + encodeURIComponent(window.learnlinkLastLiveQuizId) + "/submissions", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + token }, body: JSON.stringify({ answers: { selected_option_index: 0 } }) });
+      const data = await response.json();
+      document.getElementById("live-status-" + id).textContent = response.ok ? "Quiz answer submitted: " + data.submission.id : (data.error || "Submission failed.");
+    }
+
+    async function gradeLiveQuiz(id) {
+      if (!window.learnlinkLastLiveQuizId) {
+        document.getElementById("live-status-" + id).textContent = "Start a quiz first, then grading can generate the mark sheet.";
+        return;
+      }
+      const response = await fetch(gatewayUrl + "/courses/live-classes/quizzes/" + encodeURIComponent(window.learnlinkLastLiveQuizId) + "/grade", { method: "POST", headers: { authorization: "Bearer " + token } });
+      const data = await response.json();
+      document.getElementById("live-status-" + id).textContent = response.ok ? "Grading complete: " + data.status + " (" + data.format + ", " + data.rows + " rows)" : (data.error || "Grading failed.");
+    }
+
+    async function extractKeyPoints(id) {
+      const response = await fetch(gatewayUrl + "/courses/live-classes/" + encodeURIComponent(id) + "/key-points", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + token }, body: JSON.stringify({ transcript: "Today we covered course goals. We discussed practical projects. Students should review key concepts." }) });
+      const data = await response.json();
+      document.getElementById("live-status-" + id).textContent = response.ok ? "Key points ready: " + (data.key_points || []).join(" | ") : (data.error || "Key points failed.");
     }
 
     async function renderCommunityTab() {
