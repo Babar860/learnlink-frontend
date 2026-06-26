@@ -9,6 +9,19 @@ const html = `<!doctype html>
   <style>
     * { box-sizing: border-box; }
     :root {
+      --bg: #08111f;
+      --surface: #111b2f;
+      --surface-soft: #17243d;
+      --ink: #f8fafc;
+      --muted: #9fb0c8;
+      --line: #263653;
+      --brand: #7c3aed;
+      --brand-dark: #5b21b6;
+      --success: #0f766e;
+      --warning: #b45309;
+      --shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+    }
+    body.light {
       --bg: #f4f7fb;
       --surface: #ffffff;
       --surface-soft: #eef4ff;
@@ -17,28 +30,29 @@ const html = `<!doctype html>
       --line: #d9e2ef;
       --brand: #2563eb;
       --brand-dark: #1d4ed8;
-      --success: #0f766e;
-      --warning: #b45309;
       --shadow: 0 14px 40px rgba(15, 23, 42, 0.08);
     }
     body { margin: 0; font-family: Inter, Arial, sans-serif; background: var(--bg); color: var(--ink); }
     button, input, textarea, select { font: inherit; }
     button { border: 0; border-radius: 8px; background: var(--brand); color: white; padding: 10px 14px; cursor: pointer; font-weight: 650; }
     button:hover { background: var(--brand-dark); }
-    button.secondary { background: white; border: 1px solid var(--line); color: var(--ink); }
-    button.secondary:hover { background: #f8fafc; }
-    input, textarea, select { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 11px 12px; margin-top: 7px; background: white; }
+    button.secondary { background: var(--surface); border: 1px solid var(--line); color: var(--ink); }
+    button.secondary:hover { background: var(--surface-soft); }
+    input, textarea, select { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 11px 12px; margin-top: 7px; background: #0d1729; color: var(--ink); }
+    body.light input, body.light textarea, body.light select { background: white; color: var(--ink); }
     textarea { min-height: 104px; resize: vertical; }
     .hidden { display: none !important; }
     .muted { color: var(--muted); }
     .badge { display: inline-flex; align-items: center; border-radius: 999px; background: #ecfdf5; color: var(--success); padding: 4px 10px; font-size: 12px; font-weight: 700; }
-    .landing { min-height: 100vh; background: linear-gradient(135deg, #eef5ff 0%, #f8fbff 52%, #ffffff 100%); }
+    .landing { min-height: 100vh; background: radial-gradient(circle at 20% 10%, rgba(124, 58, 237, 0.22), transparent 32%), linear-gradient(135deg, #080d1a 0%, #101a31 52%, #08111f 100%); }
+    body.light .landing { background: linear-gradient(135deg, #eef5ff 0%, #f8fbff 52%, #ffffff 100%); }
     .landing-nav { max-width: 1180px; margin: 0 auto; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; }
     .brand { display: flex; align-items: center; gap: 12px; font-weight: 800; letter-spacing: -0.02em; }
     .brand-mark { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; color: white; background: linear-gradient(135deg, #2563eb, #0f766e); box-shadow: var(--shadow); }
     .landing-main { max-width: 1180px; margin: 0 auto; padding: 38px 24px 64px; }
     .hero-panel { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr); gap: 26px; align-items: stretch; }
-    .hero-copy { background: rgba(255,255,255,0.76); border: 1px solid var(--line); border-radius: 18px; padding: 34px; box-shadow: var(--shadow); }
+    .hero-copy { background: rgba(17,27,47,0.78); border: 1px solid var(--line); border-radius: 18px; padding: 34px; box-shadow: var(--shadow); }
+    body.light .hero-copy { background: rgba(255,255,255,0.76); }
     .hero-copy h1 { font-size: 52px; line-height: 1.02; margin: 10px 0 16px; letter-spacing: -0.04em; }
     .hero-copy p { max-width: 680px; line-height: 1.7; color: var(--muted); font-size: 17px; }
     .eyebrow { color: var(--brand); font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; }
@@ -48,9 +62,9 @@ const html = `<!doctype html>
     .metric { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 14px; }
     .metric strong { display: block; font-size: 24px; }
     .feature-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 18px; }
-    .feature-card, .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04); }
+    .feature-card, .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16); }
     .feature-card h3, .card h3 { margin: 0 0 10px; }
-    .auth-card { max-width: 520px; margin: 42px auto; background: white; border: 1px solid var(--line); border-radius: 16px; padding: 24px; box-shadow: var(--shadow); }
+    .auth-card { max-width: 560px; margin: 42px auto; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 24px; box-shadow: var(--shadow); }
     .app-shell { min-height: 100vh; display: grid; grid-template-columns: 260px minmax(0, 1fr); }
     .sidebar { background: #0f172a; color: white; padding: 18px; display: flex; flex-direction: column; gap: 18px; position: sticky; top: 0; height: 100vh; }
     .sidebar .brand { padding: 6px 4px 16px; border-bottom: 1px solid rgba(255,255,255,0.1); }
@@ -60,12 +74,14 @@ const html = `<!doctype html>
     .nav-item.active { background: white; color: #0f172a; border-color: white; }
     .sidebar-footer { margin-top: auto; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 14px; color: #cbd5e1; font-size: 13px; }
     .workspace { min-width: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); }
-    .topbar { height: 74px; background: rgba(255,255,255,0.88); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; position: sticky; top: 0; z-index: 2; }
+    .topbar { height: 74px; background: rgba(8,17,31,0.9); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; position: sticky; top: 0; z-index: 2; }
+    body.light .topbar { background: rgba(255,255,255,0.88); }
     .topbar h1 { margin: 0; font-size: 22px; letter-spacing: -0.02em; }
-    .search { max-width: 380px; width: 34vw; border: 1px solid var(--line); border-radius: 999px; padding: 10px 14px; color: var(--muted); background: #f8fafc; }
+    .search { max-width: 380px; width: 34vw; border: 1px solid var(--line); border-radius: 999px; padding: 10px 14px; color: var(--muted); background: #101a2f; }
+    body.light .search { background: #f8fafc; }
     .search input { border: 0; margin: 0; padding: 0; background: transparent; outline: 0; }
     .content-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; padding: 22px; }
-    .page-header { background: linear-gradient(135deg, #ffffff, #eef4ff); border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin-bottom: 16px; }
+    .page-header { background: linear-gradient(135deg, var(--surface), var(--surface-soft)); border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin-bottom: 16px; }
     .page-header h2 { margin: 0 0 8px; font-size: 28px; letter-spacing: -0.03em; }
     .composer { margin-bottom: 16px; }
     .feed-card { display: grid; gap: 10px; }
@@ -81,6 +97,13 @@ const html = `<!doctype html>
     .list-grid { display: grid; gap: 12px; }
     .preview-item { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
     .preview-item strong { display: block; margin-bottom: 4px; }
+    .auth-options { display: grid; gap: 12px; margin-top: 18px; }
+    .oauth-button { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; background: #0d1729; border: 1px solid var(--line); color: var(--ink); }
+    .oauth-button:hover { background: #17243d; }
+    .pill-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+    .mini-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; }
+    .target-panel { margin-top: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,0.03); }
+    .theme-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
     @media (max-width: 950px) {
       .app-shell { grid-template-columns: 1fr; }
       .sidebar { position: static; height: auto; }
@@ -106,7 +129,6 @@ const html = `<!doctype html>
             <div class="actions">
               <button data-auth-mode="signup">Create account</button>
               <button class="secondary" data-auth-mode="login">Login</button>
-              <button class="secondary" data-auth-mode="admin">Admin Login</button>
             </div>
           </div>
           <aside class="hero-card">
@@ -130,23 +152,13 @@ const html = `<!doctype html>
         </div>
       </section>
       <section id="auth-panel" class="auth-card hidden">
-        <h2 id="auth-title">Login</h2>
-        <p class="muted">Login with a saved account, or create a local account for the product preview.</p>
-        <label>Name<input id="name" placeholder="Your name" /></label>
-        <label>Email<input id="email" placeholder="you@example.com" /></label>
-        <label>Password<input id="password" type="password" placeholder="At least 8 characters" /></label>
-        <label>Role
-          <select id="role">
-            <option value="student">Student</option>
-            <option value="teacher">Teacher</option>
-            <option value="recruiter">Recruiter</option>
-            <option value="admin">Admin</option>
-          </select>
-        </label>
-        <p class="actions">
-          <button id="auth-submit">Continue</button>
-          <button class="secondary" id="auth-cancel">Back</button>
-        </p>
+        <h2 id="auth-title">Login to LearnLink</h2>
+        <p class="muted">Continue with one account provider. Local preview creates a secure demo session for the selected provider.</p>
+        <div class="auth-options">
+          <button class="oauth-button" data-provider="google">G Continue with Google</button>
+          <button class="oauth-button" data-provider="github">GitHub Continue with GitHub</button>
+        </div>
+        <p class="actions"><button class="secondary" id="auth-cancel">Back</button></p>
         <p id="auth-error" class="muted"></p>
       </section>
     </main>
@@ -159,6 +171,7 @@ const html = `<!doctype html>
       <div class="sidebar-footer">
         <strong>Automation</strong>
         <p>Moderation, recommendations, eligibility, feed ranking, and grading run through AI agents.</p>
+        <div class="theme-toggle"><span>Theme</span><button class="secondary" id="theme-toggle">Dark</button></div>
       </div>
     </aside>
     <section class="workspace">
@@ -185,7 +198,12 @@ const html = `<!doctype html>
     let user = JSON.parse(localStorage.getItem("learnlink_user") || "null");
     let feedPosts = [];
     let myPosts = [];
+    let myChannels = [];
+    let postableCommunities = [];
+    let ownerReviewPosts = [];
     let searchQuery = "";
+    let postMode = "community_post";
+    let theme = localStorage.getItem("learnlink_theme") || "dark";
 
     const show = (id) => document.getElementById(id).classList.remove("hidden");
     const hide = (id) => document.getElementById(id).classList.add("hidden");
@@ -193,9 +211,10 @@ const html = `<!doctype html>
     const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
     const normalized = (value) => String(value ?? "").toLowerCase();
     const matchesQuery = (item, fields) => !searchQuery || fields.some((field) => normalized(item[field]).includes(searchQuery));
-    const tabLabels = { feed: "Feed", courses: "Courses", jobs: "Jobs", community: "Community", channels: "Channels", admin: "Admin" };
+    const tabLabels = { feed: "Feed", my_posts: "My Posts", courses: "Courses", jobs: "Jobs", community: "Community", channels: "Channels", admin: "Admin" };
     const tabSubtitles = {
-      feed: "Personalized posts and publishing",
+      feed: "Approved posts from your followed communities and channels",
+      my_posts: "Create posts, manage review states, and track approvals",
       courses: "Recommended courses and live classes",
       jobs: "Search and apply to career opportunities",
       community: "Subscribed public communities",
@@ -204,7 +223,7 @@ const html = `<!doctype html>
     };
 
     function visibleTabs() {
-      const tabs = ["feed", "courses", "jobs", "community", "channels"];
+      const tabs = ["feed", "my_posts", "courses", "jobs", "community", "channels"];
       if (isAdmin()) tabs.push("admin");
       return tabs;
     }
@@ -213,23 +232,30 @@ const html = `<!doctype html>
       document.querySelectorAll("[data-auth-mode]").forEach((button) => {
         button.addEventListener("click", () => {
           authMode = button.dataset.authMode;
-          document.getElementById("auth-title").textContent = authMode === "signup" ? "Create account" : authMode === "admin" ? "Admin login" : "Login";
-          document.getElementById("role").value = authMode === "admin" ? "admin" : "student";
-          document.getElementById("name").value = authMode === "admin" ? "LearnLink Admin" : "";
-          document.getElementById("email").value = authMode === "admin" ? "admin@learnlink.local" : "";
-          document.getElementById("password").value = "";
+          document.getElementById("auth-title").textContent = authMode === "signup" ? "Create LearnLink account" : "Login to LearnLink";
           document.getElementById("auth-error").textContent = "";
           hide("landing");
           show("auth-panel");
         });
       });
+      document.querySelectorAll("[data-provider]").forEach((button) => {
+        button.addEventListener("click", () => authenticateProvider(button.dataset.provider));
+      });
     }
 
     function renderShell() {
+      document.body.classList.toggle("light", theme === "light");
       if (token && user) {
         hide("public-shell");
         show("app-shell");
         document.getElementById("logout").onclick = logout;
+        const themeButton = document.getElementById("theme-toggle");
+        themeButton.textContent = theme === "light" ? "Light" : "Dark";
+        themeButton.onclick = () => {
+          theme = theme === "light" ? "dark" : "light";
+          localStorage.setItem("learnlink_theme", theme);
+          renderShell();
+        };
         const search = document.getElementById("global-search");
         search.value = searchQuery;
         search.oninput = () => {
@@ -243,7 +269,7 @@ const html = `<!doctype html>
         hide("app-shell");
         show("landing");
         hide("auth-panel");
-        document.getElementById("public-actions").innerHTML = '<button class="secondary" data-auth-mode="login">Login</button><button data-auth-mode="signup">Sign up</button><button class="secondary" data-auth-mode="admin">Admin Login</button>';
+        document.getElementById("public-actions").innerHTML = '<button class="secondary" data-auth-mode="login">Login</button><button data-auth-mode="signup">Sign up</button>';
         bindAuthButtons();
       }
     }
@@ -275,10 +301,11 @@ const html = `<!doctype html>
       setHeader(tabLabels[activeTab], tabSubtitles[activeTab]);
       renderRightPanel();
       if (activeTab === "feed") return renderFeedTab();
+      if (activeTab === "my_posts") return renderMyPostsTab();
       if (activeTab === "courses") return renderApiCards("Courses", "/courses", "courses", (item) => [item.title, item.description || item.category || "Course record", item.is_paid ? "Paid" : "Free"]);
       if (activeTab === "jobs") return renderApiCards("Jobs", "/jobs", "jobs", (item) => [item.title, (item.company || "Company") + " - " + (item.location || "Location TBD"), item.is_active === false ? "Draft" : "Active"]);
-      if (activeTab === "community") return renderApiCards("Community", "/community/communities", "communities", (item) => [item.name, item.description || "Community record", (item.subscriber_count || 0) + " members"], "community_post");
-      if (activeTab === "channels") return renderApiCards("Channels", "/community/channels", "channels", (item) => [item.name, item.description || "Channel record", item.is_paid ? "Paid" : "Free"], "channel_post");
+      if (activeTab === "community") return renderApiCards("Community", "/community/communities", "communities", (item) => [item.name, item.description || "Community record", (item.subscriber_count || 0) + " members"]);
+      if (activeTab === "channels") return renderApiCards("Channels", "/community/channels", "channels", (item) => [item.name, item.description || "Channel record", item.is_paid ? "Paid" : "Free"]);
       if (activeTab === "admin") return renderAdminTab();
     }
 
@@ -328,11 +355,90 @@ const html = `<!doctype html>
     async function renderFeedTab() {
       await loadFeed();
       document.getElementById("main-panel").innerHTML =
-        '<div class="page-header"><h2>Home Feed</h2><p class="muted">Approved posts from your followed sources. Create a post to send it through AI moderation.</p></div>' +
-        '<div class="card composer"><h3>Create post</h3><div class="form-grid"><label>Destination<select id="post-type"><option value="community_post">Community news</option><option value="channel_post">Channel update</option><option value="platform_post">Public profile post</option></select></label><label>Media image URL<input id="media-url" placeholder="https://example.com/image.jpg" /></label></div><textarea id="post" placeholder="Share news, learning updates, or discussion with your community"></textarea><p><button id="submit">Submit for AI Review</button></p></div><div class="page-header"><h2>Approved Feed</h2><p class="muted">Only posts approved by the moderation agent appear here.</p></div><div id="feed" class="list-grid"></div><div class="page-header"><h2>My Posts</h2><p class="muted">Track your pending, approved, and rejected submissions.</p></div><div id="my-posts" class="status-grid"></div>';
-      document.getElementById("submit").addEventListener("click", () => submitPost(document.getElementById("post-type").value, "post", "media-url"));
+        '<div class="page-header"><h2>Home Feed</h2><p class="muted">Approved community, channel, and profile posts from your followed sources.</p></div>' +
+        '<div id="feed" class="list-grid"></div>';
       renderFeedPosts();
+    }
+
+    async function renderMyPostsTab() {
+      await loadPostWorkspace();
+      document.getElementById("main-panel").innerHTML =
+        '<div class="page-header"><h2>My Posts</h2><p class="muted">Create channel/community/profile posts and track AI moderation plus owner approvals.</p></div>' +
+        renderPostComposer() +
+        '<div class="page-header"><h2>Review Queue</h2><p class="muted">Pending means AI review or community-owner approval is still in progress.</p></div><div id="my-posts" class="status-grid"></div><div id="owner-review"></div>';
+      bindPostWorkspace();
       renderMyPosts();
+    }
+
+    function renderPostComposer() {
+      return '<div class="card composer"><h3>Create post</h3><div class="form-grid"><label>Destination<select id="post-type"><option value="community_post">Community post</option><option value="channel_post">My channel post</option><option value="platform_post">Public profile post</option></select></label><label>Media image URL<input id="media-url" placeholder="https://example.com/image.jpg" /></label></div><div id="target-panel" class="target-panel"></div><textarea id="post" placeholder="Share news, learning updates, or discussion"></textarea><p class="actions"><button id="submit">Submit for AI Review</button></p><p id="post-message" class="muted"></p></div>';
+    }
+
+    function bindPostWorkspace() {
+      const typeSelect = document.getElementById("post-type");
+      typeSelect.value = postMode;
+      typeSelect.onchange = () => {
+        postMode = typeSelect.value;
+        renderTargetPanel();
+      };
+      document.getElementById("submit").addEventListener("click", submitWorkspacePost);
+      renderTargetPanel();
+    }
+
+    function renderTargetPanel() {
+      const panel = document.getElementById("target-panel");
+      if (!panel) return;
+      if (postMode === "platform_post") {
+        panel.innerHTML = '<p class="muted">This post publishes to your public profile after the Admin AI agent approves it.</p>';
+        return;
+      }
+      if (postMode === "channel_post") {
+        panel.innerHTML =
+          '<h3>Choose your channel</h3>' +
+          (myChannels.length ? '<label>Channel<select id="target-id">' + myChannels.map((channel) => '<option value="' + escapeHtml(channel.id) + '">' + escapeHtml(channel.name) + '</option>').join("") + '</select></label>' : '<p class="muted">No channel found for this account. Create one before posting.</p>') +
+          '<div class="mini-form"><label>New channel<input id="new-channel-name" placeholder="Data Mentorship" /></label><label>Description<input id="new-channel-description" placeholder="What this channel is about" /></label><button id="create-channel" type="button">Create channel</button></div>';
+        document.getElementById("create-channel").onclick = createChannelFromForm;
+        return;
+      }
+      panel.innerHTML =
+        '<h3>Select a community</h3><label>Search public-posting communities<input id="community-search" placeholder="Search by community name" /></label>' +
+        '<label>Community<select id="target-id">' + (postableCommunities.length ? postableCommunities.map((community) => '<option value="' + escapeHtml(community.id) + '">' + escapeHtml(community.name) + '</option>').join("") : '<option value="">No postable communities found</option>') + '</select></label>' +
+        '<div class="mini-form"><label>New community<input id="new-community-name" placeholder="AI Study Circle" /></label><label>Description<input id="new-community-description" placeholder="Community purpose" /></label><button id="create-community" type="button">Create community</button></div>' +
+        '<label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input id="community-public" type="checkbox" checked style="width:auto;margin:0" /> Allow everyone to submit posts for owner approval</label>';
+      document.getElementById("community-search").oninput = async (event) => {
+        await loadPostableCommunities(event.target.value);
+        renderTargetPanel();
+      };
+      document.getElementById("create-community").onclick = createCommunityFromForm;
+    }
+
+    async function createChannelFromForm() {
+      const name = document.getElementById("new-channel-name").value.trim();
+      const description = document.getElementById("new-channel-description").value.trim();
+      const response = await fetch(gatewayUrl + "/community/channels", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: "Bearer " + token },
+        body: JSON.stringify({ name, description })
+      });
+      const data = await response.json();
+      document.getElementById("post-message").textContent = response.ok ? "Channel created. Select it and publish your post." : (data.message || data.error || "Channel could not be created.");
+      await loadPostWorkspace();
+      renderTargetPanel();
+    }
+
+    async function createCommunityFromForm() {
+      const name = document.getElementById("new-community-name").value.trim();
+      const description = document.getElementById("new-community-description").value.trim();
+      const allows = document.getElementById("community-public").checked;
+      const response = await fetch(gatewayUrl + "/community/communities", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: "Bearer " + token },
+        body: JSON.stringify({ name, description, allows_public_posts: allows })
+      });
+      const data = await response.json();
+      document.getElementById("post-message").textContent = response.ok ? "Community created. Public posting rule saved." : (data.message || data.error || "Community could not be created.");
+      await loadPostWorkspace();
+      renderTargetPanel();
     }
 
     function renderFeedPosts() {
@@ -357,6 +463,24 @@ const html = `<!doctype html>
         const rows = myPosts.filter((post) => (post.status || post.ai_moderation_status) === status).filter((post) => matchesQuery(post, ["source", "content", "post_type", "ai_moderation_reason"]));
         return '<section class="card"><h3>' + label + '</h3>' + (rows.length ? rows.map(renderCompactPost).join("") : '<p class="muted">No ' + label.toLowerCase() + ' posts.</p>') + '</section>';
       }).join("");
+      renderOwnerReview();
+    }
+
+    function renderOwnerReview() {
+      const panel = document.getElementById("owner-review");
+      if (!panel) return;
+      const rows = ownerReviewPosts.filter((post) => matchesQuery(post, ["source", "content", "author", "ai_moderation_reason"]));
+      panel.innerHTML = '<div class="page-header"><h2>Owner Approvals</h2><p class="muted">Posts submitted to communities you own appear here after AI analysis.</p></div>' +
+        '<div class="list-grid">' + (rows.length ? rows.map((post) => '<article class="card feed-card"><h3>' + escapeHtml(post.author || "LearnLink user") + ' <span class="badge pending">owner approval</span></h3><p class="muted">' + escapeHtml(post.source || "Community post") + '</p><p>' + escapeHtml(post.content) + '</p><p class="muted">' + escapeHtml(post.ai_moderation_reason || "AI analysis complete.") + '</p><button data-approve-post="' + escapeHtml(post.id) + '">Approve post</button></article>').join("") : '<article class="card"><h3>No owner approvals</h3><p class="muted">Community submissions needing your approval will appear here.</p></article>') + '</div>';
+      document.querySelectorAll("[data-approve-post]").forEach((button) => {
+        button.onclick = async () => {
+          await fetch(gatewayUrl + "/community/posts/" + encodeURIComponent(button.dataset.approvePost) + "/approve", {
+            method: "POST",
+            headers: { authorization: "Bearer " + token }
+          });
+          await renderMyPostsTab();
+        };
+      });
     }
 
     function renderCompactPost(post) {
@@ -365,25 +489,38 @@ const html = `<!doctype html>
       return '<article style="border-top:1px solid var(--line);padding-top:12px;margin-top:12px"><strong>' + escapeHtml(post.source || post.post_type) + '</strong><p>' + escapeHtml(post.content) + '</p><span class="badge ' + escapeHtml(status) + '">' + escapeHtml(status) + '</span>' + reason + '</article>';
     }
 
-    async function authenticate() {
-      const name = document.getElementById("name").value.trim();
-      const email = document.getElementById("email").value.trim();
-      const password = document.getElementById("password").value;
-      const role = document.getElementById("role").value;
-      const path = authMode === "signup" ? "/auth/signup" : "/auth/login";
-      const response = await fetch(gatewayUrl + path, {
+    async function authenticateProvider(provider) {
+      const profileKey = "learnlink_provider_" + provider;
+      let profile = JSON.parse(localStorage.getItem(profileKey) || "null");
+      if (!profile) {
+        profile = {
+          name: provider === "github" ? "GitHub Learner" : "Google Learner",
+          email: provider + "-learner@learnlink.local",
+          password: provider + "_local_preview_secret"
+        };
+        localStorage.setItem(profileKey, JSON.stringify(profile));
+      }
+      let response = await fetch(gatewayUrl + "/auth/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name, email, password, roles: [role] })
+        body: JSON.stringify({ email: profile.email, password: profile.password })
       });
-      const data = await response.json();
+      let data = await response.json();
+      if (!response.ok) {
+        response = await fetch(gatewayUrl + "/auth/signup", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ name: profile.name, email: profile.email, password: profile.password, roles: ["student"] })
+        });
+        data = await response.json();
+      }
       if (!response.ok) {
         document.getElementById("auth-error").textContent = data.error || "Authentication failed";
         return;
       }
       token = data.token;
       user = data.user;
-      activeTab = user.roles && user.roles.includes("admin") ? "admin" : "feed";
+      activeTab = "feed";
       localStorage.setItem("learnlink_token", token);
       localStorage.setItem("learnlink_user", JSON.stringify(user));
       renderShell();
@@ -396,6 +533,7 @@ const html = `<!doctype html>
       feedPosts = [];
       myPosts = [];
       searchQuery = "";
+      ownerReviewPosts = [];
       localStorage.removeItem("learnlink_token");
       localStorage.removeItem("learnlink_user");
       renderShell();
@@ -406,25 +544,51 @@ const html = `<!doctype html>
       if (response.status === 401) return logout();
       const data = await response.json();
       feedPosts = data.posts || [];
+    }
+
+    async function loadPostWorkspace() {
       const mineResponse = await fetch(gatewayUrl + "/community/posts/mine", { headers: { authorization: "Bearer " + token } });
       if (mineResponse.status === 401) return logout();
       const mineData = await mineResponse.json();
       myPosts = mineData.posts || [];
+      const ownerResponse = await fetch(gatewayUrl + "/community/posts/owner-review", { headers: { authorization: "Bearer " + token } });
+      if (ownerResponse.status === 401) return logout();
+      const ownerData = await ownerResponse.json();
+      ownerReviewPosts = ownerData.posts || [];
+      const channelsResponse = await fetch(gatewayUrl + "/community/channels/mine", { headers: { authorization: "Bearer " + token } });
+      if (channelsResponse.status === 401) return logout();
+      const channelsData = await channelsResponse.json();
+      myChannels = channelsData.channels || [];
+      await loadPostableCommunities("");
     }
 
-    async function submitPost(postType, contentId, mediaId) {
-      const content = document.getElementById(contentId).value.trim();
-      const mediaUrl = document.getElementById(mediaId).value.trim();
+    async function loadPostableCommunities(query) {
+      const response = await fetch(gatewayUrl + "/community/communities/postable?q=" + encodeURIComponent(query || ""), { headers: { authorization: "Bearer " + token } });
+      if (response.status === 401) return logout();
+      const data = await response.json();
+      postableCommunities = data.communities || [];
+    }
+
+    async function submitWorkspacePost() {
+      const content = document.getElementById("post").value.trim();
+      const mediaUrl = document.getElementById("media-url").value.trim();
+      const target = document.getElementById("target-id");
+      const targetId = target ? target.value : "";
       if (!content) return;
-      await fetch(gatewayUrl + "/community/posts", {
+      const response = await fetch(gatewayUrl + "/community/posts", {
         method: "POST",
         headers: { "content-type": "application/json", authorization: "Bearer " + token },
-        body: JSON.stringify({ content, post_type: postType || "community_post", media_urls: mediaUrl ? [mediaUrl] : [] })
+        body: JSON.stringify({ content, post_type: postMode || "community_post", target_id: targetId, media_urls: mediaUrl ? [mediaUrl] : [] })
       });
-      await renderFeedTab();
+      const data = await response.json();
+      document.getElementById("post-message").textContent = response.ok ? "Post submitted. Check the review queue below." : (data.message || data.error || "Post could not be submitted.");
+      if (response.ok) {
+        document.getElementById("post").value = "";
+        document.getElementById("media-url").value = "";
+        await renderMyPostsTab();
+      }
     }
 
-    document.getElementById("auth-submit").addEventListener("click", authenticate);
     document.getElementById("auth-cancel").addEventListener("click", renderShell);
     bindAuthButtons();
     renderShell();
