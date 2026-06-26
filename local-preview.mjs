@@ -63,12 +63,18 @@ const html = `<!doctype html>
     .topbar { height: 74px; background: rgba(255,255,255,0.88); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; position: sticky; top: 0; z-index: 2; }
     .topbar h1 { margin: 0; font-size: 22px; letter-spacing: -0.02em; }
     .search { max-width: 380px; width: 34vw; border: 1px solid var(--line); border-radius: 999px; padding: 10px 14px; color: var(--muted); background: #f8fafc; }
+    .search input { border: 0; margin: 0; padding: 0; background: transparent; outline: 0; }
     .content-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; padding: 22px; }
     .page-header { background: linear-gradient(135deg, #ffffff, #eef4ff); border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin-bottom: 16px; }
     .page-header h2 { margin: 0 0 8px; font-size: 28px; letter-spacing: -0.03em; }
     .composer { margin-bottom: 16px; }
     .feed-card { display: grid; gap: 10px; }
     .feed-card h3 { display: flex; align-items: center; gap: 10px; }
+    .post-media { width: min(480px, 100%); max-height: 280px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); }
+    .form-grid { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 12px; }
+    .status-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .badge.pending { background: #fff7ed; color: var(--warning); }
+    .badge.rejected { background: #fef2f2; color: #b91c1c; }
     .right-panel { display: grid; gap: 14px; align-content: start; }
     .stat-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line); }
     .stat-row:last-child { border-bottom: 0; }
@@ -161,7 +167,7 @@ const html = `<!doctype html>
           <h1 id="page-title">Feed</h1>
           <span class="muted" id="page-subtitle">Personalized home feed</span>
         </div>
-        <div class="search">Search courses, channels, jobs...</div>
+        <div class="search"><input id="global-search" placeholder="Search posts, courses, channels, jobs..." /></div>
         <button class="secondary" id="logout">Logout</button>
       </header>
       <main class="content-grid">
@@ -178,10 +184,15 @@ const html = `<!doctype html>
     let token = localStorage.getItem("learnlink_token");
     let user = JSON.parse(localStorage.getItem("learnlink_user") || "null");
     let feedPosts = [];
+    let myPosts = [];
+    let searchQuery = "";
 
     const show = (id) => document.getElementById(id).classList.remove("hidden");
     const hide = (id) => document.getElementById(id).classList.add("hidden");
     const isAdmin = () => user && Array.isArray(user.roles) && user.roles.includes("admin");
+    const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
+    const normalized = (value) => String(value ?? "").toLowerCase();
+    const matchesQuery = (item, fields) => !searchQuery || fields.some((field) => normalized(item[field]).includes(searchQuery));
     const tabLabels = { feed: "Feed", courses: "Courses", jobs: "Jobs", community: "Community", channels: "Channels", admin: "Admin" };
     const tabSubtitles = {
       feed: "Personalized posts and publishing",
@@ -219,6 +230,12 @@ const html = `<!doctype html>
         hide("public-shell");
         show("app-shell");
         document.getElementById("logout").onclick = logout;
+        const search = document.getElementById("global-search");
+        search.value = searchQuery;
+        search.oninput = () => {
+          searchQuery = search.value.trim().toLowerCase();
+          renderActiveTab();
+        };
         renderNav();
         renderActiveTab();
       } else {
@@ -249,9 +266,9 @@ const html = `<!doctype html>
 
     function renderRightPanel() {
       document.getElementById("right-panel").innerHTML =
-        '<div class="card"><h3>Account</h3><div class="stat-row"><span>Name</span><strong>' + user.name + '</strong></div><div class="stat-row"><span>Role</span><strong>' + user.roles.join(", ") + '</strong></div><div class="stat-row"><span>Gateway</span><strong>Online</strong></div></div>' +
+        '<div class="card"><h3>Account</h3><div class="stat-row"><span>Name</span><strong>' + escapeHtml(user.name) + '</strong></div><div class="stat-row"><span>Role</span><strong>' + escapeHtml(user.roles.join(", ")) + '</strong></div><div class="stat-row"><span>Gateway</span><strong>Online</strong></div></div>' +
         '<div class="card"><h3>Agent Health</h3><div class="stat-row"><span>Moderation</span><strong>Active</strong></div><div class="stat-row"><span>Ranking</span><strong>Session</strong></div><div class="stat-row"><span>Eligibility</span><strong>Nightly</strong></div></div>' +
-        '<div class="card"><h3>Persistence</h3><p class="muted">Records load from PostgreSQL when DATABASE_URL is configured, otherwise from local JSON storage.</p></div>';
+        '<div class="card"><h3>Posting Rules</h3><p class="muted">Community and channel posts enter your review queue first. Approved posts appear in feeds; rejected posts show the reason.</p></div>';
     }
 
     function renderActiveTab() {
@@ -260,24 +277,39 @@ const html = `<!doctype html>
       if (activeTab === "feed") return renderFeedTab();
       if (activeTab === "courses") return renderApiCards("Courses", "/courses", "courses", (item) => [item.title, item.description || item.category || "Course record", item.is_paid ? "Paid" : "Free"]);
       if (activeTab === "jobs") return renderApiCards("Jobs", "/jobs", "jobs", (item) => [item.title, (item.company || "Company") + " - " + (item.location || "Location TBD"), item.is_active === false ? "Draft" : "Active"]);
-      if (activeTab === "community") return renderApiCards("Community", "/community/communities", "communities", (item) => [item.name, item.description || "Community record", (item.subscriber_count || 0) + " members"]);
-      if (activeTab === "channels") return renderApiCards("Channels", "/community/channels", "channels", (item) => [item.name, item.description || "Channel record", item.is_paid ? "Paid" : "Free"]);
+      if (activeTab === "community") return renderApiCards("Community", "/community/communities", "communities", (item) => [item.name, item.description || "Community record", (item.subscriber_count || 0) + " members"], "community_post");
+      if (activeTab === "channels") return renderApiCards("Channels", "/community/channels", "channels", (item) => [item.name, item.description || "Channel record", item.is_paid ? "Paid" : "Free"], "channel_post");
       if (activeTab === "admin") return renderAdminTab();
     }
 
-    function renderCards(title, rows) {
+    function renderCards(title, rows, composerType) {
+      const filteredRows = rows.filter((row) => !searchQuery || row.join(" ").toLowerCase().includes(searchQuery));
+      const composer = composerType ? renderInlineComposer(composerType) : "";
       document.getElementById("main-panel").innerHTML =
         '<div class="page-header"><h2>' + title + '</h2><p class="muted">' + tabSubtitles[activeTab] + '</p></div>' +
-        '<div class="list-grid">' + rows.map((row) => '<article class="card preview-item"><div><strong>' + row[0] + '</strong><p class="muted">' + row[1] + '</p></div><span class="badge">' + row[2] + '</span></article>').join("") + '</div>';
+        composer +
+        '<div class="list-grid">' + (filteredRows.length ? filteredRows : [["No results", "Try a different search term or create a new post.", "Empty"]]).map((row) => '<article class="card preview-item"><div><strong>' + escapeHtml(row[0]) + '</strong><p class="muted">' + escapeHtml(row[1]) + '</p></div><span class="badge">' + escapeHtml(row[2]) + '</span></article>').join("") + '</div>';
+      if (composerType) bindInlineComposer(composerType);
     }
 
-    async function renderApiCards(title, endpoint, key, mapRow) {
-      document.getElementById("main-panel").innerHTML = '<div class="page-header"><h2>' + title + '</h2><p class="muted">Loading persisted records...</p></div>';
+    async function renderApiCards(title, endpoint, key, mapRow, composerType) {
+      document.getElementById("main-panel").innerHTML = '<div class="page-header"><h2>' + title + '</h2><p class="muted">Loading records...</p></div>';
       const response = await fetch(gatewayUrl + endpoint, { headers: { authorization: "Bearer " + token } });
       if (response.status === 401) return logout();
       const payload = await response.json();
       const rows = (payload[key] || []).map(mapRow);
-      renderCards(title, rows.length ? rows : [["No records yet", "Create records from the owning service API.", "Empty"]]);
+      renderCards(title, rows.length ? rows : [["No records yet", "Create records from the owning service API.", "Empty"]], composerType);
+    }
+
+    function renderInlineComposer(postType) {
+      const label = postType === "channel_post" ? "Create channel post" : "Create community post";
+      return '<div class="card composer"><h3>' + label + '</h3><textarea id="inline-post" placeholder="Post news, updates, or discussion for this space"></textarea><div class="form-grid"><label>Media image URL<input id="inline-media" placeholder="https://..." /></label><p><button id="inline-submit">Submit for AI Review</button></p></div><p class="muted">Your agent reviews this before it appears in user feeds.</p></div>';
+    }
+
+    function bindInlineComposer(postType) {
+      document.getElementById("inline-submit").addEventListener("click", async () => {
+        await submitPost(postType, "inline-post", "inline-media");
+      });
     }
 
     async function renderAdminTab() {
@@ -297,13 +329,40 @@ const html = `<!doctype html>
       await loadFeed();
       document.getElementById("main-panel").innerHTML =
         '<div class="page-header"><h2>Home Feed</h2><p class="muted">Approved posts from your followed sources. Create a post to send it through AI moderation.</p></div>' +
-        '<div class="card composer"><h3>Create platform post</h3><textarea id="post" placeholder="Share an update with your network"></textarea><p><button id="submit">Submit for AI Review</button></p></div><div id="feed" class="list-grid"></div>';
-      document.getElementById("submit").addEventListener("click", submitPost);
+        '<div class="card composer"><h3>Create post</h3><div class="form-grid"><label>Destination<select id="post-type"><option value="community_post">Community news</option><option value="channel_post">Channel update</option><option value="platform_post">Public profile post</option></select></label><label>Media image URL<input id="media-url" placeholder="https://example.com/image.jpg" /></label></div><textarea id="post" placeholder="Share news, learning updates, or discussion with your community"></textarea><p><button id="submit">Submit for AI Review</button></p></div><div class="page-header"><h2>Approved Feed</h2><p class="muted">Only posts approved by the moderation agent appear here.</p></div><div id="feed" class="list-grid"></div><div class="page-header"><h2>My Posts</h2><p class="muted">Track your pending, approved, and rejected submissions.</p></div><div id="my-posts" class="status-grid"></div>';
+      document.getElementById("submit").addEventListener("click", () => submitPost(document.getElementById("post-type").value, "post", "media-url"));
       renderFeedPosts();
+      renderMyPosts();
     }
 
     function renderFeedPosts() {
-      document.getElementById("feed").innerHTML = feedPosts.map((post) => '<article class="card feed-card"><h3>' + (post.author || post.author_id || "LearnLink user") + ' <span class="badge">' + (post.status || post.ai_moderation_status || "approved") + '</span></h3><p class="muted">' + (post.source || post.post_type || "Platform-wide") + '</p><p>' + post.content + '</p><p class="muted">' + (post.metrics || "Live API item") + '</p></article>').join("");
+      const visiblePosts = feedPosts.filter((post) => matchesQuery(post, ["author", "source", "content", "post_type"]));
+      document.getElementById("feed").innerHTML = visiblePosts.length ? visiblePosts.map(renderPostCard).join("") : '<article class="card"><h3>No approved posts found</h3><p class="muted">Try another search or submit a community/channel post for review.</p></article>';
+    }
+
+    function renderPostCard(post) {
+      const status = post.status || post.ai_moderation_status || "approved";
+      const media = Array.isArray(post.media_url) && post.media_url.length ? '<img class="post-media" src="' + escapeHtml(post.media_url[0]) + '" alt="Post media" />' : "";
+      const reason = status === "rejected" && post.ai_moderation_reason ? '<p class="muted"><strong>Reason:</strong> ' + escapeHtml(post.ai_moderation_reason) + '</p>' : "";
+      return '<article class="card feed-card"><h3>' + escapeHtml(post.author || post.author_id || "LearnLink user") + ' <span class="badge ' + escapeHtml(status) + '">' + escapeHtml(status) + '</span></h3><p class="muted">' + escapeHtml(post.source || post.post_type || "Platform-wide") + '</p>' + media + '<p>' + escapeHtml(post.content) + '</p>' + reason + '</article>';
+    }
+
+    function renderMyPosts() {
+      const statuses = [
+        ["pending", "Pending"],
+        ["approved", "Approved"],
+        ["rejected", "Denied"]
+      ];
+      document.getElementById("my-posts").innerHTML = statuses.map(([status, label]) => {
+        const rows = myPosts.filter((post) => (post.status || post.ai_moderation_status) === status).filter((post) => matchesQuery(post, ["source", "content", "post_type", "ai_moderation_reason"]));
+        return '<section class="card"><h3>' + label + '</h3>' + (rows.length ? rows.map(renderCompactPost).join("") : '<p class="muted">No ' + label.toLowerCase() + ' posts.</p>') + '</section>';
+      }).join("");
+    }
+
+    function renderCompactPost(post) {
+      const status = post.status || post.ai_moderation_status || "pending";
+      const reason = post.ai_moderation_reason ? '<p class="muted">' + escapeHtml(post.ai_moderation_reason) + '</p>' : "";
+      return '<article style="border-top:1px solid var(--line);padding-top:12px;margin-top:12px"><strong>' + escapeHtml(post.source || post.post_type) + '</strong><p>' + escapeHtml(post.content) + '</p><span class="badge ' + escapeHtml(status) + '">' + escapeHtml(status) + '</span>' + reason + '</article>';
     }
 
     async function authenticate() {
@@ -335,6 +394,8 @@ const html = `<!doctype html>
       user = null;
       activeTab = "feed";
       feedPosts = [];
+      myPosts = [];
+      searchQuery = "";
       localStorage.removeItem("learnlink_token");
       localStorage.removeItem("learnlink_user");
       renderShell();
@@ -345,15 +406,20 @@ const html = `<!doctype html>
       if (response.status === 401) return logout();
       const data = await response.json();
       feedPosts = data.posts || [];
+      const mineResponse = await fetch(gatewayUrl + "/community/posts/mine", { headers: { authorization: "Bearer " + token } });
+      if (mineResponse.status === 401) return logout();
+      const mineData = await mineResponse.json();
+      myPosts = mineData.posts || [];
     }
 
-    async function submitPost() {
-      const content = document.getElementById("post").value.trim();
+    async function submitPost(postType, contentId, mediaId) {
+      const content = document.getElementById(contentId).value.trim();
+      const mediaUrl = document.getElementById(mediaId).value.trim();
       if (!content) return;
       await fetch(gatewayUrl + "/community/posts", {
         method: "POST",
         headers: { "content-type": "application/json", authorization: "Bearer " + token },
-        body: JSON.stringify({ content, post_type: "platform_post" })
+        body: JSON.stringify({ content, post_type: postType || "community_post", media_urls: mediaUrl ? [mediaUrl] : [] })
       });
       await renderFeedTab();
     }
