@@ -48,6 +48,7 @@ export default function Home() {
   const [content, setContent] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [role, setRole] = useState("student");
   const [message, setMessage] = useState("");
 
@@ -85,7 +86,7 @@ export default function Home() {
     const response = await fetch(`${gatewayUrl}/auth/${authMode}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name, email, roles: [role] })
+      body: JSON.stringify({ name, email, password, roles: [role] })
     });
     const data = (await response.json()) as { token?: string; user?: LocalUser; error?: string };
 
@@ -123,10 +124,12 @@ export default function Home() {
   }
 
   function openAuth(mode: "login" | "signup" | "admin") {
-    setAuthMode(mode === "admin" ? "signup" : mode);
+    setAuthMode(mode === "admin" ? "login" : mode);
     setRole(mode === "admin" ? "admin" : "student");
-    setName(mode === "admin" ? "Admin User" : "");
+    setName(mode === "admin" ? "LearnLink Admin" : "");
     setEmail(mode === "admin" ? "admin@learnlink.local" : "");
+    setPassword("");
+    setMessage("");
     setShowAuth(true);
   }
 
@@ -179,6 +182,7 @@ export default function Home() {
               <p className="mt-2 text-slate-600">A local dev account unlocks the preview feed.</p>
               <label className="mt-4 block text-sm font-medium">Name<input className="mt-2 w-full rounded-md border border-line p-3" value={name} onChange={(event) => setName(event.target.value)} /></label>
               <label className="mt-4 block text-sm font-medium">Email<input className="mt-2 w-full rounded-md border border-line p-3" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+              <label className="mt-4 block text-sm font-medium">Password<input type="password" className="mt-2 w-full rounded-md border border-line p-3" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
               <label className="mt-4 block text-sm font-medium">Role
                 <select className="mt-2 w-full rounded-md border border-line p-3" value={role} onChange={(event) => setRole(event.target.value)}>
                   <option value="student">Student</option>

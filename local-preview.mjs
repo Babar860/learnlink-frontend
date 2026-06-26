@@ -125,9 +125,10 @@ const html = `<!doctype html>
       </section>
       <section id="auth-panel" class="auth-card hidden">
         <h2 id="auth-title">Login</h2>
-        <p class="muted">Use any local email to unlock the product preview.</p>
+        <p class="muted">Login with a saved account, or create a local account for the product preview.</p>
         <label>Name<input id="name" placeholder="Your name" /></label>
         <label>Email<input id="email" placeholder="you@example.com" /></label>
+        <label>Password<input id="password" type="password" placeholder="At least 8 characters" /></label>
         <label>Role
           <select id="role">
             <option value="student">Student</option>
@@ -203,8 +204,10 @@ const html = `<!doctype html>
           authMode = button.dataset.authMode;
           document.getElementById("auth-title").textContent = authMode === "signup" ? "Create account" : authMode === "admin" ? "Admin login" : "Login";
           document.getElementById("role").value = authMode === "admin" ? "admin" : "student";
-          document.getElementById("name").value = authMode === "admin" ? "Admin User" : "";
+          document.getElementById("name").value = authMode === "admin" ? "LearnLink Admin" : "";
           document.getElementById("email").value = authMode === "admin" ? "admin@learnlink.local" : "";
+          document.getElementById("password").value = "";
+          document.getElementById("auth-error").textContent = "";
           hide("landing");
           show("auth-panel");
         });
@@ -306,12 +309,13 @@ const html = `<!doctype html>
     async function authenticate() {
       const name = document.getElementById("name").value.trim();
       const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
       const role = document.getElementById("role").value;
-      const path = authMode === "signup" || authMode === "admin" ? "/auth/signup" : "/auth/login";
+      const path = authMode === "signup" ? "/auth/signup" : "/auth/login";
       const response = await fetch(gatewayUrl + path, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name, email, roles: [role] })
+        body: JSON.stringify({ name, email, password, roles: [role] })
       });
       const data = await response.json();
       if (!response.ok) {
@@ -320,7 +324,7 @@ const html = `<!doctype html>
       }
       token = data.token;
       user = data.user;
-      activeTab = role === "admin" ? "admin" : "feed";
+      activeTab = user.roles && user.roles.includes("admin") ? "admin" : "feed";
       localStorage.setItem("learnlink_token", token);
       localStorage.setItem("learnlink_user", JSON.stringify(user));
       renderShell();
