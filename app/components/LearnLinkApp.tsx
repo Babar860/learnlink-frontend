@@ -88,6 +88,7 @@ export function LearnLinkApp({ section }: { section: Section }) {
     bank_details: ""
   });
   const [apiItems, setApiItems] = useState<Array<Record<string, unknown>>>([]);
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
 
   const isTeacher = user?.roles.includes("teacher");
   const isAdmin = user?.roles.includes("admin");
@@ -96,6 +97,8 @@ export function LearnLinkApp({ section }: { section: Section }) {
   useEffect(() => {
     const savedToken = window.localStorage.getItem("learnlink_token");
     const savedUser = window.localStorage.getItem("learnlink_user");
+    const savedTheme = window.localStorage.getItem("learnlink_theme");
+    if (savedTheme === "light" || savedTheme === "dark") setTheme(savedTheme);
     if (savedToken && savedUser) {
       setToken(savedToken);
       setUser(JSON.parse(savedUser) as LocalUser);
@@ -256,13 +259,22 @@ export function LearnLinkApp({ section }: { section: Section }) {
     setPosts([]);
   }
 
+  function toggleTheme() {
+    setTheme((current) => {
+      const next = current === "dark" ? "light" : "dark";
+      window.localStorage.setItem("learnlink_theme", next);
+      return next;
+    });
+  }
+
   if (!token || !user) {
     return (
-      <main className="min-h-screen bg-[#07111f] text-white">
+      <main className={`learnlink-shell ${theme === "light" ? "theme-light" : "theme-dark"} min-h-screen bg-[#07111f] text-white`}>
         <header className="border-b border-white/10">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5">
             <Link href="/" className="text-xl font-black">LearnLink</Link>
             <div className="flex gap-3">
+              <button className="rounded-lg border border-white/20 px-4 py-2" onClick={toggleTheme}>{theme === "dark" ? "Light" : "Dark"}</button>
               <button className="rounded-lg border border-white/20 px-4 py-2" onClick={() => setAuthMode("login")}>Login</button>
               <button className="rounded-lg bg-violet-600 px-4 py-2 font-bold" onClick={() => setAuthMode("signup")}>Create account</button>
             </div>
@@ -304,7 +316,7 @@ export function LearnLinkApp({ section }: { section: Section }) {
   }
 
   return (
-    <main className="min-h-screen bg-[#07111f] text-slate-100">
+    <main className={`learnlink-shell ${theme === "light" ? "theme-light" : "theme-dark"} min-h-screen bg-[#07111f] text-slate-100`}>
       <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-white/10 bg-slate-950 p-5 lg:block">
         <Link href="/feed" className="flex items-center gap-3 text-xl font-black"><span className="grid h-10 w-10 place-items-center rounded-xl bg-cyan-500">L</span>LearnLink</Link>
         <nav className="mt-8 grid gap-2">
@@ -314,6 +326,10 @@ export function LearnLinkApp({ section }: { section: Section }) {
             </Link>
           ))}
         </nav>
+        <div className="absolute bottom-5 left-5 right-5 rounded-xl border border-white/10 bg-white/5 p-4">
+          <p className="text-sm font-bold">Theme</p>
+          <button className="mt-3 w-full rounded-lg border border-white/10 px-4 py-2 font-bold" onClick={toggleTheme}>{theme === "dark" ? "Switch to Light" : "Switch to Dark"}</button>
+        </div>
       </aside>
       <section className="lg:pl-64">
         <header className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-slate-950/90 px-5 py-4 backdrop-blur">
@@ -321,7 +337,10 @@ export function LearnLinkApp({ section }: { section: Section }) {
             <h1 className="text-2xl font-black">{visibleTabs.find((tab) => tab.id === section)?.label ?? "LearnLink"}</h1>
             <p className="text-sm text-slate-400">Signed in as {user.name} ({user.roles.join(", ")})</p>
           </div>
-          <button className="rounded-lg border border-white/10 px-4 py-2 font-bold" onClick={logout}>Logout</button>
+          <div className="flex gap-3">
+            <button className="rounded-lg border border-white/10 px-4 py-2 font-bold lg:hidden" onClick={toggleTheme}>{theme === "dark" ? "Light" : "Dark"}</button>
+            <button className="rounded-lg border border-white/10 px-4 py-2 font-bold" onClick={logout}>Logout</button>
+          </div>
         </header>
         <div className="grid gap-5 p-5 xl:grid-cols-[1fr_320px]">
           <section className="min-w-0">{renderSection()}</section>
@@ -399,12 +418,33 @@ export function LearnLinkApp({ section }: { section: Section }) {
       );
     }
 
+    return renderDirectorySection();
+  }
+
+  function renderDirectorySection() {
+    const label = visibleTabs.find((tab) => tab.id === section)?.label ?? "Directory";
+    const copyBySection: Partial<Record<Section, string>> = {
+      jobs: "Search live career opportunities, review company details, and apply from one place.",
+      community: "Discover communities and see whether public posting is enabled.",
+      channels: "Browse creator channels, pricing, ownership, and access type.",
+      admin: "Operational records from moderation, agents, feature flags, and platform health."
+    };
     return (
       <section className="rounded-xl border border-white/10 bg-white/5 p-5">
-        <h2 className="text-2xl font-black">{visibleTabs.find((tab) => tab.id === section)?.label}</h2>
-        <p className="mt-2 text-slate-400">This is now a routed page. Data is loaded from the gateway when available.</p>
-        <div className="mt-5 grid gap-3">
-          {apiItems.slice(0, 10).map((item, index) => <pre key={index} className="overflow-auto rounded-lg bg-slate-950 p-3 text-xs text-slate-300">{JSON.stringify(item, null, 2)}</pre>)}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-black">{label}</h2>
+            <p className="mt-2 text-slate-400">{copyBySection[section] ?? "Data is loaded from the gateway when available."}</p>
+          </div>
+          {section === "jobs" ? <button className="rounded-lg bg-violet-600 px-4 py-2 font-black">Post job</button> : null}
+        </div>
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          {apiItems.length ? apiItems.slice(0, 20).map((item, index) => <ApiItemCard key={String(item.id ?? index)} item={item} section={section} />) : (
+            <article className="rounded-xl border border-white/10 bg-slate-950 p-5">
+              <h3 className="font-black">No records found</h3>
+              <p className="mt-2 text-sm text-slate-400">The gateway returned no {label.toLowerCase()} yet.</p>
+            </article>
+          )}
         </div>
       </section>
     );
@@ -456,4 +496,88 @@ function PostCard({ post }: { post: FeedPost }) {
       </div>
     </article>
   );
+}
+
+function ApiItemCard({ item, section }: { item: Record<string, unknown>; section: Section }) {
+  if (section === "jobs") {
+    const title = getText(item, ["title"], "Untitled role");
+    const company = getText(item, ["company"], "Company");
+    const location = getText(item, ["location"], "Location TBD");
+    const category = getText(item, ["category"], "General");
+    const description = getText(item, ["description"], "No description provided yet.");
+    const applyUrl = getText(item, ["apply_url"], "");
+    const isActive = item.is_active !== false;
+    return (
+      <article className="rounded-xl border border-white/10 bg-slate-950 p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-black">{title}</h3>
+            <p className="mt-1 text-sm text-slate-400">{company} - {location}</p>
+          </div>
+          <span className={`rounded-full px-3 py-1 text-xs font-black ${isActive ? "bg-emerald-300 text-slate-950" : "bg-amber-300 text-slate-950"}`}>{isActive ? "Active" : "Draft"}</span>
+        </div>
+        <p className="mt-4 leading-7 text-slate-300">{description}</p>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <span className="rounded-full border border-white/10 px-3 py-1 text-xs font-bold text-slate-300">{category}</span>
+          {applyUrl ? <a className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-black text-white" href={applyUrl} target="_blank" rel="noreferrer">Apply</a> : <button className="rounded-lg border border-white/10 px-4 py-2 text-sm font-black">Apply</button>}
+        </div>
+      </article>
+    );
+  }
+
+  if (section === "community" || section === "channels") {
+    const title = getText(item, ["name", "title"], section === "community" ? "Community" : "Channel");
+    const description = getText(item, ["description"], "No description provided.");
+    const owner = getText(item, ["owner_name", "owner_id"], "LearnLink creator");
+    const allowsPublic = Boolean(item.allows_public_posts);
+    const isPaid = Boolean(item.is_paid);
+    const price = Number(item.price_monthly ?? item.price ?? 0);
+    return (
+      <article className="rounded-xl border border-white/10 bg-slate-950 p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-black">{title}</h3>
+            <p className="mt-1 text-sm text-slate-400">Owner: {owner}</p>
+          </div>
+          <span className="rounded-full bg-cyan-300 px-3 py-1 text-xs font-black text-slate-950">{section === "community" ? (allowsPublic ? "Public posting" : "Owner curated") : (isPaid ? "Paid" : "Free")}</span>
+        </div>
+        <p className="mt-4 leading-7 text-slate-300">{description}</p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {section === "channels" && isPaid ? <span className="rounded-full border border-white/10 px-3 py-1 text-xs font-bold text-slate-300">{price} / month</span> : null}
+          <button className="rounded-lg border border-white/10 px-4 py-2 text-sm font-black">{section === "community" ? "View community" : "Open channel"}</button>
+        </div>
+      </article>
+    );
+  }
+
+  const title = getText(item, ["title", "agent_name", "id"], "Admin record");
+  const status = getText(item, ["status", "result", "persistence"], "Recorded");
+  return (
+    <article className="rounded-xl border border-white/10 bg-slate-950 p-5">
+      <h3 className="text-lg font-black">{title}</h3>
+      <p className="mt-2 text-sm text-slate-400">{status}</p>
+      <dl className="mt-4 grid gap-2 text-sm">
+        {Object.entries(item).slice(0, 6).map(([key, value]) => (
+          <div key={key} className="flex justify-between gap-4 border-t border-white/10 pt-2">
+            <dt className="text-slate-400">{key}</dt>
+            <dd className="max-w-[60%] truncate font-bold">{formatValue(value)}</dd>
+          </div>
+        ))}
+      </dl>
+    </article>
+  );
+}
+
+function getText(item: Record<string, unknown>, keys: string[], fallback: string) {
+  for (const key of keys) {
+    const value = item[key];
+    if (value !== undefined && value !== null && String(value).trim()) return String(value);
+  }
+  return fallback;
+}
+
+function formatValue(value: unknown) {
+  if (value === null || value === undefined) return "-";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
 }

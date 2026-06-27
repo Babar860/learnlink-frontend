@@ -19,3 +19,53 @@ select {
   font: inherit;
 }
 
+.learnlink-shell {
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.theme-light {
+  background: #f4f7fb !important;
+  color: #101827 !important;
+}
+
+.theme-light .bg-\[\#07111f\],
+.theme-light .bg-slate-950 {
+  background: #ffffff !important;
+}
+
+.theme-light .bg-white\/5,
+.theme-light .bg-white\/10 {
+  background: #ffffff !important;
+}
+
+.theme-light .bg-slate-950\/90 {
+  background: rgba(255, 255, 255, 0.92) !important;
+}
+
+.theme-light .border-white\/10,
+.theme-light .border-white\/20 {
+  border-color: #d9e2ef !important;
+}
+
+.theme-light .text-white,
+.theme-light .text-slate-100,
+.theme-light .text-slate-300 {
+  color: #101827 !important;
+}
+
+.theme-light .text-slate-400 {
+  color: #607089 !important;
+}
+
+.theme-light input,
+.theme-light textarea,
+.theme-light select {
+  background: #ffffff !important;
+  color: #101827 !important;
+  border-color: #d9e2ef !important;
+}
+
+.theme-light pre,
+.theme-light code {
+  color: #101827;
+}
