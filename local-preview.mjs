@@ -389,7 +389,7 @@ const html = `<!doctype html>
         '<div class="page-header"><h2>Course Portal</h2><p class="muted">Student discovery, teacher uploads, live classes, quiz conversion, validation, key points, and grading.</p></div>' +
         '<div class="portal-grid">' +
           (isTeacher ? renderCourseUploadForm() + renderLiveClassForm() : '<article class="card wide-card"><h3>Student Courses Portal</h3><p class="muted">Teachers see upload and live-class controls here. Students can join open or validated classes.</p></article>') +
-          '<section class="card wide-card"><h3>Course Discovery</h3><p class="muted">Video mode: ' + escapeHtml(coursePortal.video_hosting_mode || "third_party") + '. Paid courses and roadmaps are surfaced here.</p><div class="list-grid">' + (courses.length ? courses.map(renderCourseCard).join("") : '<article class="card"><h3>No courses found</h3><p class="muted">Upload a course as a teacher or try another search.</p></article>') + '</div></section>' +
+          '<section class="card wide-card"><h3>Course Discovery</h3><p class="muted">Discovery mode: ' + escapeHtml(coursePortal.discovery_mode || "trending_plus_onboarding") + '. Video mode: ' + escapeHtml(coursePortal.video_hosting_mode || "third_party") + '. Premium unlocks roadmaps, paid courses, and 15 matching jobs.</p><div class="list-grid">' + (courses.length ? courses.map(renderCourseCard).join("") : '<article class="card"><h3>No courses found</h3><p class="muted">Upload a course as a teacher or try another search.</p></article>') + '</div></section>' +
           '<section class="card wide-card"><h3>Live Classes</h3><p class="muted">Open classes are joinable directly. Organization restricted classes ask for registration number.</p><div class="list-grid">' + (liveClasses.length ? liveClasses.map(renderLiveClassCard).join("") : '<article class="card"><h3>No live classes found</h3><p class="muted">Teachers can create scheduled or immediate classes above.</p></article>') + '</div></section>' +
         '</div>';
       bindCoursePortal();
@@ -405,7 +405,9 @@ const html = `<!doctype html>
     }
 
     function renderCourseCard(course) {
-      return '<article class="card preview-item"><div><strong>' + escapeHtml(course.title) + '</strong><p class="muted">' + escapeHtml(course.description || "") + '</p><p class="muted tiny">Teacher: ' + escapeHtml(course.teacher_name || "LearnLink teacher") + ' | Sections: ' + Number(course.section_count || 0) + ' | Lessons: ' + Number(course.lesson_count || 0) + '</p></div><span class="badge">' + (course.is_paid ? "Paid" : "Free") + '</span></article>';
+      const mine = String(course.teacher_id || "") === String(user.id || "");
+      const key = escapeHtml(course.id);
+      return '<article class="card"><h3>' + escapeHtml(course.title) + ' <span class="badge">' + (course.is_paid ? "Paid" : "Free") + '</span></h3><p class="muted">' + escapeHtml(course.description || "") + '</p><p class="muted tiny">Teacher: ' + escapeHtml(course.teacher_name || "LearnLink teacher") + ' | Sections: ' + Number(course.section_count || 0) + ' | Lessons: ' + Number(course.lesson_count || 0) + ' | ' + escapeHtml(course.rank_reason || "recommended") + '</p><p class="actions"><button data-roadmap="' + key + '">Roadmap</button>' + (course.is_paid ? '<button data-purchase-course="' + key + '">Purchase</button>' : '') + (mine ? '<button data-course-channel="' + key + '">Create course channel</button>' : '') + '</p><p class="muted tiny" id="course-status-' + key + '"></p></article>';
     }
 
     function renderLiveClassCard(liveClass) {
@@ -426,6 +428,9 @@ const html = `<!doctype html>
       document.querySelectorAll("[data-grade-quiz]").forEach((button) => button.onclick = () => gradeLiveQuiz(button.dataset.gradeQuiz));
       document.querySelectorAll("[data-keypoints]").forEach((button) => button.onclick = () => extractKeyPoints(button.dataset.keypoints));
       document.querySelectorAll("[data-submit-live-answer]").forEach((button) => button.onclick = () => submitLiveAnswer(button.dataset.submitLiveAnswer));
+      document.querySelectorAll("[data-roadmap]").forEach((button) => button.onclick = () => loadRoadmap(button.dataset.roadmap));
+      document.querySelectorAll("[data-purchase-course]").forEach((button) => button.onclick = () => purchaseCourse(button.dataset.purchaseCourse));
+      document.querySelectorAll("[data-course-channel]").forEach((button) => button.onclick = () => createCourseChannel(button.dataset.courseChannel));
     }
 
     async function submitCourseUpload() {
@@ -495,6 +500,25 @@ const html = `<!doctype html>
       const response = await fetch(gatewayUrl + "/courses/live-classes/" + encodeURIComponent(id) + "/key-points", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + token }, body: JSON.stringify({ transcript: "Today we covered course goals. We discussed practical projects. Students should review key concepts." }) });
       const data = await response.json();
       document.getElementById("live-status-" + id).textContent = response.ok ? "Key points ready: " + (data.key_points || []).join(" | ") : (data.error || "Key points failed.");
+    }
+
+    async function loadRoadmap(id) {
+      const response = await fetch(gatewayUrl + "/courses/" + encodeURIComponent(id) + "/roadmap", { headers: { authorization: "Bearer " + token } });
+      const data = await response.json();
+      const target = document.getElementById("course-status-" + id);
+      target.textContent = response.ok ? "Roadmap: " + (data.roadmap || []).join(" -> ") + " | Matching jobs: " + (data.matching_jobs || []).length : (data.message || data.error || "Roadmap unavailable.");
+    }
+
+    async function purchaseCourse(id) {
+      const response = await fetch(gatewayUrl + "/courses/" + encodeURIComponent(id) + "/purchase", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + token }, body: JSON.stringify({ student_id: user.id }) });
+      const data = await response.json();
+      document.getElementById("course-status-" + id).textContent = response.ok ? (data.purchase ? "Stripe purchase intent created: " + data.purchase.stripe_payment_intent_id : data.status) : (data.error || "Purchase failed.");
+    }
+
+    async function createCourseChannel(id) {
+      const response = await fetch(gatewayUrl + "/courses/" + encodeURIComponent(id) + "/channel", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + token }, body: JSON.stringify({ name: "Course Materials Channel", organization_id: document.getElementById("live-org")?.value || "", grade: document.getElementById("live-grade")?.value || "" }) });
+      const data = await response.json();
+      document.getElementById("course-status-" + id).textContent = response.ok ? "Course channel ready: " + data.channel.name : (data.error || "Channel creation failed.");
     }
 
     async function renderCommunityTab() {
