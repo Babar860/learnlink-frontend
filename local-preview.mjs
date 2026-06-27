@@ -127,6 +127,13 @@ const html = `<!doctype html>
     .portal-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
     .wide-card { grid-column: 1 / -1; }
     .tiny { font-size: 12px; }
+    .live-room { position: fixed; inset: 24px; z-index: 8; background: #07111f; color: white; border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
+    .live-room header, .live-room footer { padding: 14px 18px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+    .live-room footer { border-top: 1px solid var(--line); border-bottom: 0; justify-content: center; }
+    .call-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; padding: 16px; min-height: 0; }
+    .video-stage { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-content: start; }
+    .video-tile { min-height: 220px; border-radius: 12px; border: 1px solid #28405f; background: linear-gradient(135deg, #111827, #1e3a8a); display: grid; place-items: center; font-weight: 800; }
+    .call-panel { border: 1px solid #28405f; border-radius: 12px; padding: 14px; background: rgba(255,255,255,0.04); overflow: auto; }
     @media (max-width: 950px) {
       .app-shell { grid-template-columns: 1fr; }
       .sidebar { position: static; height: auto; }
@@ -187,6 +194,10 @@ const html = `<!doctype html>
             <option value="recruiter">Recruiter</option>
           </select>
         </label>
+        <div class="form-grid">
+          <label>Organization<input id="auth-org" placeholder="e.g. Karachi Institute of Economics and Technology" /></label>
+          <label>Grade/year<input id="auth-grade" placeholder="e.g. BSCS-2026" /></label>
+        </div>
         <p class="actions">
           <button id="login-submit">Login</button>
           <button class="secondary" id="signup-submit">Create account</button>
@@ -240,6 +251,9 @@ const html = `<!doctype html>
     let postableCommunities = [];
     let ownerReviewPosts = [];
     let coursePortal = { courses: [], live_classes: [], video_hosting_mode: "third_party" };
+    let courseCreatorMode = "";
+    let courseCreatorStep = 1;
+    let courseDraft = {};
     let searchQuery = "";
     let postMode = "community_post";
     let theme = localStorage.getItem("learnlink_theme") || "dark";
@@ -281,6 +295,8 @@ const html = `<!doctype html>
           document.getElementById("auth-email").value = "";
           document.getElementById("auth-password").value = "";
           document.getElementById("auth-role").value = "student";
+          document.getElementById("auth-org").value = "";
+          document.getElementById("auth-grade").value = "";
           hide("landing");
           show("auth-panel");
         });
@@ -386,13 +402,30 @@ const html = `<!doctype html>
       const courses = (coursePortal.courses || []).filter((course) => matchesQuery(course, ["title", "description", "category", "teacher_name"]));
       const liveClasses = (coursePortal.live_classes || []).filter((liveClass) => matchesQuery(liveClass, ["title", "course_title", "teacher_name", "grade"]));
       document.getElementById("main-panel").innerHTML =
-        '<div class="page-header"><h2>Course Portal</h2><p class="muted">Student discovery, teacher uploads, live classes, quiz conversion, validation, key points, and grading.</p></div>' +
+        '<div class="page-header"><h2>' + (isTeacher ? "Teacher Course Studio" : "Student Courses Portal") + '</h2><p class="muted">' + (isTeacher ? "Only your uploaded courses and created live classes are shown here." : "Only public classes or classes matching your organization and grade are shown here.") + '</p></div>' +
         '<div class="portal-grid">' +
-          (isTeacher ? renderCourseUploadForm() + renderLiveClassForm() : '<article class="card wide-card"><h3>Student Courses Portal</h3><p class="muted">Teachers see upload and live-class controls here. Students can join open or validated classes.</p></article>') +
+          (isTeacher ? renderTeacherCourseActions() + renderCourseCreationWizard() : '<article class="card wide-card"><h3>Student Section</h3><p class="muted">Courses and live classes below are available to your student profile.</p></article>') +
           '<section class="card wide-card"><h3>Course Discovery</h3><p class="muted">Discovery mode: ' + escapeHtml(coursePortal.discovery_mode || "trending_plus_onboarding") + '. Video mode: ' + escapeHtml(coursePortal.video_hosting_mode || "third_party") + '. Premium unlocks roadmaps, paid courses, and 15 matching jobs.</p><div class="list-grid">' + (courses.length ? courses.map(renderCourseCard).join("") : '<article class="card"><h3>No courses found</h3><p class="muted">Upload a course as a teacher or try another search.</p></article>') + '</div></section>' +
           '<section class="card wide-card"><h3>Live Classes</h3><p class="muted">Open classes are joinable directly. Organization restricted classes ask for registration number.</p><div class="list-grid">' + (liveClasses.length ? liveClasses.map(renderLiveClassCard).join("") : '<article class="card"><h3>No live classes found</h3><p class="muted">Teachers can create scheduled or immediate classes above.</p></article>') + '</div></section>' +
         '</div>';
       bindCoursePortal();
+    }
+
+    function renderTeacherCourseActions() {
+      return '<section class="card wide-card"><h3>Teacher Actions</h3><p class="muted">Create content through guided steps. Students will only see eligible published courses and matching live classes.</p><p class="actions"><button id="open-course-wizard">Upload course</button><button id="open-live-wizard">Create live class</button></p></section>';
+    }
+
+    function renderCourseCreationWizard() {
+      if (!courseCreatorMode) return "";
+      const title = courseCreatorMode === "course" ? "Upload Course" : "Create Live Class";
+      if (courseCreatorStep === 1) {
+        return '<section class="card wide-card"><h3>' + title + ' - Basic details</h3><label>Name<input id="wizard-title" value="' + escapeHtml(courseDraft.title || "") + '" /></label><label>Description<textarea id="wizard-description">' + escapeHtml(courseDraft.description || "") + '</textarea></label><label>Course<select id="wizard-course"><option value="">New or no linked course</option>' + (coursePortal.courses || []).map((course) => '<option value="' + escapeHtml(course.id) + '">' + escapeHtml(course.title) + '</option>').join("") + '</select></label><p class="actions"><button id="wizard-next">Continue</button></p></section>';
+      }
+      if (courseCreatorMode === "course" && courseCreatorStep === 2) {
+        return '<section class="card wide-card"><h3>Upload Course - Video</h3><label>Video link<input id="wizard-video" value="' + escapeHtml(courseDraft.video_url || "") + '" placeholder="Mux/Bunny/Cloudflare Stream URL" /></label><label class="upload-box">Upload video from device<input id="wizard-video-file" type="file" accept="video/*" /></label><p id="wizard-video-name" class="muted tiny">' + escapeHtml(courseDraft.video_name || "No video selected") + '</p><p class="actions"><button id="wizard-next">Continue</button></p></section>';
+      }
+      const quizChecked = courseDraft.has_quiz ? "checked" : "";
+      return '<section class="card wide-card"><h3>' + title + ' - Final setup</h3><div class="form-grid"><label>Organization<input id="wizard-org" value="' + escapeHtml(courseDraft.organization_id || "") + '" placeholder="empty means open to all" /></label><label>Grade/year<input id="wizard-grade" value="' + escapeHtml(courseDraft.grade || "") + '" /></label></div>' + (courseCreatorMode === "course" ? '<label>Prerequisites<input id="wizard-prereq" value="' + escapeHtml(courseDraft.prerequisites || "") + '" placeholder="comma separated course ids" /></label><label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input id="wizard-paid" type="checkbox" style="width:auto;margin:0" ' + (courseDraft.is_paid ? "checked" : "") + ' /> Paid course</label><label>Price<input id="wizard-price" type="number" min="0" value="' + Number(courseDraft.price || 0) + '" /></label>' : '<label>Schedule<input id="wizard-scheduled" type="datetime-local" value="' + escapeHtml(courseDraft.scheduled_at || "") + '" /></label>') + '<label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input id="wizard-quiz-enabled" type="checkbox" style="width:auto;margin:0" ' + quizChecked + ' /> Add quiz</label><label>Quiz prompt<textarea id="wizard-quiz">' + escapeHtml(courseDraft.quiz_prompt || "") + '</textarea></label><label>Bank details<input id="wizard-bank" value="' + escapeHtml(courseDraft.bank_details || "") + '" placeholder="Required for paid course or quiz billing" /></label><p class="muted tiny">Estimated upload/quiz price is shown after creation based on video size and selected paid features.</p><p class="actions"><button id="wizard-create">' + (courseCreatorMode === "course" ? "Create course" : "Create live class") + '</button></p><p id="wizard-message" class="muted tiny"></p></section>';
     }
 
     function renderCourseUploadForm() {
@@ -413,7 +446,8 @@ const html = `<!doctype html>
     function renderLiveClassCard(liveClass) {
       const mine = String(liveClass.teacher_id || "") === String(user.id || "");
       const key = escapeHtml(liveClass.id);
-      return '<article class="card"><h3>' + escapeHtml(liveClass.title) + ' <span class="badge">' + escapeHtml(liveClass.status || "scheduled") + '</span></h3><p class="muted">' + escapeHtml(liveClass.course_title || "No linked course") + ' | Teacher: ' + escapeHtml(liveClass.teacher_name || "LearnLink teacher") + '</p><p class="muted tiny">Join link: ' + escapeHtml(liveClass.join_link || "") + ' | ' + (liveClass.is_open ? "Open" : "Validated") + ' | Enrolled: ' + Number(liveClass.enrollment_count || 0) + '</p><div class="form-grid"><label>Registration number<input data-registration="' + key + '" placeholder="required for org classes" /></label><label>Device fingerprint<input data-device="' + key + '" value="local-device" /></label></div><p class="actions"><button data-join-live="' + key + '">Join class</button>' + (mine ? '<button data-start-quiz="' + key + '">Start quiz</button><button data-grade-quiz="' + key + '">Grade quiz</button><button data-keypoints="' + key + '">Key points</button>' : '<button data-submit-live-answer="' + key + '">Submit quiz answer</button>') + '</p><p class="muted tiny" id="live-status-' + key + '"></p></article>';
+      const quizActions = liveClass.has_quiz || Number(liveClass.quiz_count || 0) > 0 ? (mine ? '<button data-start-quiz="' + key + '">Start quiz</button><button data-grade-quiz="' + key + '">Grade quiz</button>' : '<button data-submit-live-answer="' + key + '">Submit quiz answer</button>') : "";
+      return '<article class="card"><h3>' + escapeHtml(liveClass.title) + ' <span class="badge">' + escapeHtml(liveClass.status || "scheduled") + '</span></h3><p class="muted">' + escapeHtml(liveClass.course_title || "No linked course") + ' | Teacher: ' + escapeHtml(liveClass.teacher_name || "LearnLink teacher") + '</p><p class="muted tiny">Join link: ' + escapeHtml(liveClass.join_link || "") + ' | ' + (liveClass.is_open ? "Open to all students" : "Organization validated") + ' | Enrolled: ' + Number(liveClass.enrollment_count || 0) + '</p><div class="form-grid"><label>Registration number<input data-registration="' + key + '" placeholder="required for org classes" /></label><label>Device fingerprint<input data-device="' + key + '" value="local-device" /></label></div><p class="actions"><button data-join-live="' + key + '">Join class</button>' + quizActions + (mine ? '<button data-keypoints="' + key + '">Key points</button>' : '') + '</p><p class="muted tiny" id="live-status-' + key + '"></p></article>';
     }
 
     function bindCoursePortal() {
@@ -423,6 +457,16 @@ const html = `<!doctype html>
       if (quizConvert) quizConvert.onclick = previewQuizConversion;
       const liveSubmit = document.getElementById("live-submit");
       if (liveSubmit) liveSubmit.onclick = submitLiveClass;
+      const openCourseWizard = document.getElementById("open-course-wizard");
+      if (openCourseWizard) openCourseWizard.onclick = () => openCreatorWizard("course");
+      const openLiveWizard = document.getElementById("open-live-wizard");
+      if (openLiveWizard) openLiveWizard.onclick = () => openCreatorWizard("live");
+      const wizardNext = document.getElementById("wizard-next");
+      if (wizardNext) wizardNext.onclick = advanceCreatorWizard;
+      const wizardCreate = document.getElementById("wizard-create");
+      if (wizardCreate) wizardCreate.onclick = submitCreatorWizard;
+      const wizardVideo = document.getElementById("wizard-video-file");
+      if (wizardVideo) wizardVideo.onchange = handleWizardVideo;
       document.querySelectorAll("[data-join-live]").forEach((button) => button.onclick = () => joinLiveClass(button.dataset.joinLive));
       document.querySelectorAll("[data-start-quiz]").forEach((button) => button.onclick = () => startLiveQuiz(button.dataset.startQuiz));
       document.querySelectorAll("[data-grade-quiz]").forEach((button) => button.onclick = () => gradeLiveQuiz(button.dataset.gradeQuiz));
@@ -431,6 +475,62 @@ const html = `<!doctype html>
       document.querySelectorAll("[data-roadmap]").forEach((button) => button.onclick = () => loadRoadmap(button.dataset.roadmap));
       document.querySelectorAll("[data-purchase-course]").forEach((button) => button.onclick = () => purchaseCourse(button.dataset.purchaseCourse));
       document.querySelectorAll("[data-course-channel]").forEach((button) => button.onclick = () => createCourseChannel(button.dataset.courseChannel));
+    }
+
+    function openCreatorWizard(mode) {
+      courseCreatorMode = mode;
+      courseCreatorStep = 1;
+      courseDraft = {};
+      renderCoursesTab();
+    }
+
+    function saveWizardStep() {
+      const title = document.getElementById("wizard-title");
+      if (title) {
+        courseDraft.title = title.value.trim();
+        courseDraft.description = document.getElementById("wizard-description").value.trim();
+        courseDraft.course_id = document.getElementById("wizard-course").value;
+      }
+      const video = document.getElementById("wizard-video");
+      if (video) courseDraft.video_url = video.value.trim();
+      const org = document.getElementById("wizard-org");
+      if (org) {
+        courseDraft.organization_id = org.value.trim();
+        courseDraft.grade = document.getElementById("wizard-grade").value.trim();
+        courseDraft.has_quiz = document.getElementById("wizard-quiz-enabled").checked;
+        courseDraft.quiz_prompt = document.getElementById("wizard-quiz").value.trim();
+        courseDraft.bank_details = document.getElementById("wizard-bank").value.trim();
+        if (courseCreatorMode === "course") {
+          courseDraft.prerequisites = document.getElementById("wizard-prereq").value.trim();
+          courseDraft.is_paid = document.getElementById("wizard-paid").checked;
+          courseDraft.price = Number(document.getElementById("wizard-price").value || 0);
+        } else {
+          courseDraft.scheduled_at = document.getElementById("wizard-scheduled").value;
+        }
+      }
+    }
+
+    function advanceCreatorWizard() {
+      saveWizardStep();
+      courseCreatorStep += 1;
+      if (courseCreatorMode === "live" && courseCreatorStep === 2) courseCreatorStep = 3;
+      renderCoursesTab();
+    }
+
+    async function handleWizardVideo(event) {
+      const file = Array.from(event.target.files || [])[0];
+      if (!file) return;
+      courseDraft.video_name = file.name;
+      courseDraft.video_size_bytes = file.size;
+      courseDraft.video_url = "local-upload://" + file.name;
+      const label = document.getElementById("wizard-video-name");
+      if (label) label.textContent = file.name + " (" + file.size + " bytes)";
+    }
+
+    async function submitCreatorWizard() {
+      saveWizardStep();
+      if (courseCreatorMode === "course") return submitWizardCourse();
+      return submitWizardLiveClass();
     }
 
     async function submitCourseUpload() {
@@ -446,6 +546,58 @@ const html = `<!doctype html>
       const data = await response.json();
       document.getElementById("course-message").textContent = response.ok ? "Course uploaded with video billing metadata and quiz conversion." : (data.message || data.error || "Course upload failed.");
       if (response.ok) await renderCoursesTab();
+    }
+
+    async function submitWizardCourse() {
+      const body = {
+        title: courseDraft.title || "Untitled course",
+        description: courseDraft.description || "Teacher uploaded course",
+        category: "teacher-upload",
+        is_paid: Boolean(courseDraft.is_paid),
+        price: Number(courseDraft.price || 0),
+        prerequisites: String(courseDraft.prerequisites || "").split(",").map((item) => item.trim()).filter(Boolean),
+        access_restrictions: { organizations: courseDraft.organization_id ? [courseDraft.organization_id] : [], regions: [] },
+        bank_details: courseDraft.bank_details,
+        sections: [{ title: courseDraft.title || "Course section", order: 1, lessons: [{ title: courseDraft.description || "Course lesson", order: 1, video_url: courseDraft.video_url || "", video_size_bytes: Number(courseDraft.video_size_bytes || 0), quiz_prompt: courseDraft.has_quiz ? courseDraft.quiz_prompt : "" }] }]
+      };
+      const response = await fetch(gatewayUrl + "/courses", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + token }, body: JSON.stringify(body) });
+      const data = await response.json();
+      if (response.ok) {
+        alert("Course created. Upload price: " + (data.upload_billing?.estimated_fee || 0) + " " + (data.upload_billing?.currency || "PKR") + ". Bank details recorded for payout/billing.");
+        courseCreatorMode = "";
+        courseCreatorStep = 1;
+        courseDraft = {};
+        await renderCoursesTab();
+      } else {
+        const msg = document.getElementById("wizard-message");
+        if (msg) msg.textContent = data.message || data.error || "Course creation failed.";
+      }
+    }
+
+    async function submitWizardLiveClass() {
+      const body = {
+        title: courseDraft.title || "Untitled live class",
+        description: courseDraft.description || "",
+        course_id: courseDraft.course_id || "",
+        scheduled_at: courseDraft.scheduled_at || "",
+        organization_id: courseDraft.organization_id || "",
+        grade: courseDraft.grade || "",
+        quiz_prompt: courseDraft.has_quiz ? courseDraft.quiz_prompt : "",
+        bank_details: courseDraft.bank_details
+      };
+      const response = await fetch(gatewayUrl + "/courses/live-classes", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + token }, body: JSON.stringify(body) });
+      const data = await response.json();
+      if (response.ok) {
+        const fee = data.quiz_billing ? " Quiz price: " + data.quiz_billing.estimated_fee + " " + data.quiz_billing.currency + "." : "";
+        alert("Live class created." + fee + (data.quiz_billing ? " Bank details recorded." : ""));
+        courseCreatorMode = "";
+        courseCreatorStep = 1;
+        courseDraft = {};
+        await renderCoursesTab();
+      } else {
+        const msg = document.getElementById("wizard-message");
+        if (msg) msg.textContent = data.message || data.error || "Live class creation failed.";
+      }
     }
 
     async function previewQuizConversion() {
@@ -467,6 +619,26 @@ const html = `<!doctype html>
       const response = await fetch(gatewayUrl + "/courses/live-classes/" + encodeURIComponent(id) + "/join", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + token }, body: JSON.stringify({ registration_number: document.querySelector('[data-registration="' + id + '"]')?.value || "", device_fingerprint: document.querySelector('[data-device="' + id + '"]')?.value || "local-device" }) });
       const data = await response.json();
       document.getElementById("live-status-" + id).textContent = response.ok ? "Joined. Validated: " + Boolean(data.enrollment?.validated) + ". One active device enforced." : (data.error || "Join failed.");
+      if (response.ok) openLiveRoom(id, data.enrollment);
+    }
+
+    function openLiveRoom(id, enrollment) {
+      closeLiveRoom();
+      const liveClass = (coursePortal.live_classes || []).find((item) => String(item.id) === String(id)) || {};
+      const hasQuiz = liveClass.has_quiz || Number(liveClass.quiz_count || 0) > 0;
+      const room = document.createElement("section");
+      room.className = "live-room";
+      room.id = "live-room";
+      room.innerHTML = '<header><div><strong>' + escapeHtml(liveClass.title || "Live class") + '</strong><p class="muted tiny">Validated: ' + Boolean(enrollment?.validated) + ' | Device: ' + escapeHtml(enrollment?.device_fingerprint || "local-device") + '</p></div><button id="close-live-room" class="secondary">Leave</button></header><div class="call-grid"><div class="video-stage"><div class="video-tile">Teacher video</div><div class="video-tile">' + escapeHtml(user.name || "You") + '</div><div class="video-tile">Screen share</div><div class="video-tile">Class material</div></div><aside class="call-panel"><h3>Class tools</h3><p class="muted">Chat, participants, attendance, and AI notes are available in this live room preview.</p>' + (hasQuiz ? '<div class="card"><h3>Live Quiz</h3><p class="muted">Teacher has enabled a quiz for this class.</p><button data-submit-live-answer="' + escapeHtml(id) + '">Submit sample answer</button></div>' : '') + '<div class="card"><h3>Chat</h3><p class="comment-row">Welcome to the live class.</p><input placeholder="Message class..." /></div></aside></div><footer><button>Mute</button><button>Camera</button><button>Share screen</button><button class="secondary" id="leave-live-room">End/Leave</button></footer>';
+      document.body.appendChild(room);
+      document.getElementById("close-live-room").onclick = closeLiveRoom;
+      document.getElementById("leave-live-room").onclick = closeLiveRoom;
+      room.querySelectorAll("[data-submit-live-answer]").forEach((button) => button.onclick = () => submitLiveAnswer(button.dataset.submitLiveAnswer));
+    }
+
+    function closeLiveRoom() {
+      const room = document.getElementById("live-room");
+      if (room) room.remove();
     }
 
     async function startLiveQuiz(id) {
@@ -896,7 +1068,9 @@ const html = `<!doctype html>
       const email = document.getElementById("auth-email").value.trim();
       const password = document.getElementById("auth-password").value;
       const role = document.getElementById("auth-role").value;
-      const body = mode === "signup" ? { name, email, password, roles: [role] } : { email, password };
+      const organization_id = document.getElementById("auth-org").value.trim();
+      const grade = document.getElementById("auth-grade").value.trim();
+      const body = mode === "signup" ? { name, email, password, roles: [role], organization_id, grade } : { email, password };
       const response = await fetch(gatewayUrl + "/auth/" + mode, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -936,7 +1110,7 @@ const html = `<!doctype html>
         response = await fetch(gatewayUrl + "/auth/signup", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ name: profile.name, email: profile.email, password: profile.password, roles: [document.getElementById("auth-role").value || "student"] })
+          body: JSON.stringify({ name: profile.name, email: profile.email, password: profile.password, roles: [document.getElementById("auth-role").value || "student"], organization_id: document.getElementById("auth-org").value.trim(), grade: document.getElementById("auth-grade").value.trim() })
         });
         data = await response.json();
       }
